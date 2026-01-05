@@ -1,12 +1,22 @@
 const CACHE_NAME = 'brain-v1';
-const ASSETS = ['./index.html', './manifest.json'];
 
-// Install & Cache
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+    self.skipWaiting();
 });
 
-// Stay active
-self.addEventListener('fetch', (e) => {
-  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
+self.addEventListener('activate', (e) => {
+    e.waitUntil(clients.claim());
+});
+
+// This allows the Service Worker to show a notification even if the app is 'frozen'
+self.addEventListener('message', (event) => {
+    if (event.data.type === 'TRIGGER_NUDGE') {
+        self.registration.showNotification(event.data.title, {
+            body: event.data.body,
+            icon: 'https://via.placeholder.com/128/4ade80/000000?text=B',
+            tag: 'task-alert',
+            renotify: true,
+            requireInteraction: true // Keeps it on the lock screen longer
+        });
+    }
 });
