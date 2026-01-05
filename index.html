@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>External Brain</title>
+    <style>
+        :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --strict: #f87171; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; height: 90vh; }
+        
+        /* The Brain Input */
+        h2 { font-size: 0.8rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
+        textarea { 
+            flex-grow: 1; width: 100%; background: var(--panel); border: 1px solid #222;
+            color: #eee; padding: 15px; font-size: 16px; border-radius: 12px;
+            outline: none; resize: none; line-height: 1.5; box-sizing: border-box;
+        }
+
+        /* The Dashboard */
+        .dashboard { margin-top: 20px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
+        .stat { border-left: 2px solid #333; padding-left: 10px; }
+        .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
+        
+        .active { color: var(--accent); }
+        .alert { color: var(--strict); }
+    </style>
+</head>
+<body>
+
+    <h2>CORE LOG (TEXT ONLY)</h2>
+    <textarea id="log" placeholder="9am Start&#10;11am Call client&#10;2pm Sanket meeting&#10;6pm Wrap up"></textarea>
+
+    <div class="dashboard">
+        <div class="stat">
+            <span class="label">System Status</span>
+            <span id="status" class="active">OBSERVING...</span>
+        </div>
+        <div class="stat">
+            <span class="label">Maintenance</span>
+            <span id="maintenance">Next: Water (45m)</span>
+        </div>
+        <div class="stat">
+            <span class="label">Next Nudge</span>
+            <span id="next-nudge">Waiting for time...</span>
+        </div>
+        <div class="stat">
+            <span class="label">Local Sync</span>
+            <span id="sync">Last: Just now</span>
+        </div>
+    </div>
+
+    <script>
+        const log = document.getElementById('log');
+        const nextNudgeDisp = document.getElementById('next-nudge');
+        let maintenanceTimer = 60; // minutes
+
+        // 1. SAVE & PARSE
+        log.addEventListener('input', () => {
+            localStorage.setItem('brain_data', log.value);
+            document.getElementById('sync').innerText = "Last: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            findNextTask();
+        });
+
+        // 2. THE INTELLIGENCE (Time Parser)
+        function findNextTask() {
+            const lines = log.value.split('\n');
+            const now = new Date();
+            const currentTimeStr = now.getHours() * 60 + now.getMinutes();
+            
+            let upcoming = null;
+
+            lines.forEach(line => {
+                const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+                if (timeMatch) {
+                    let hrs = parseInt(timeMatch[1]);
+                    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                    const ampm = timeMatch[3].toLowerCase();
+
+                    if (ampm === 'pm' && hrs < 12) hrs += 12;
+                    if (ampm === 'am' && hrs === 12) hrs = 0;
+
+                    const taskTime = hrs * 60 + mins;
+                    if (taskTime > currentTimeStr && (!upcoming || taskTime < upcoming.time)) {
+                        upcoming = { time: taskTime, text: line.replace(timeMatch[0], '').trim() };
+                    }
+                }
+            });
+
+            if (upcoming) {
+                nextNudgeDisp.innerText = upcoming.text;
+                nextNudgeDisp.classList.add('active');
+            } else {
+                nextNudgeDisp.innerText = "No upcoming tasks";
+                nextNudgeDisp.classList.remove('active');
+            }
+        }
+
+        // 3. HUMAN MAINTENANCE (The "Calm Nudge")
+        setInterval(() => {
+            maintenanceTimer--;
+            if (maintenanceTimer <= 0) {
+                sendNudge("Human Maintenance", "Stretch and drink water. You've been focused too long.");
+                maintenanceTimer = 60; // Reset
+            }
+            document.getElementById('maintenance').innerText = `Next: Water (${maintenanceTimer}m)`;
+        }, 60000);
+
+        function sendNudge(title, body) {
+            if (Notification.permission === "granted") {
+                new Notification(title, { body: body });
+            }
+        }
+
+        // 4. BOOT UP
+        window.onload = () => {
+            log.value = localStorage.getItem('brain_data') || "";
+            if (Notification.permission !== "granted") Notification.requestPermission();
+            findNextTask();
+        };
+    </script>
+</body>
+</html>
