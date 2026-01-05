@@ -63,13 +63,22 @@
 
         // --- 1. NOTIFICATION ENGINE ---
         function triggerNudge(title, body) {
-            if (Notification.permission === "granted") {
-                new Notification(title, { 
-                    body: body,
-                    icon: 'https://via.placeholder.com/128/4ade80/000000?text=B'
-                });
-            }
-        }
+    // 1. Try to play sound (only works if app is open)
+    const sound = document.getElementById('nudge-sound');
+    if (sound) sound.play().catch(() => {});
+
+    // 2. Tell the Service Worker to show the notification (Works while locked)
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+            type: 'TRIGGER_NUDGE',
+            title: title,
+            body: body
+        });
+    } else {
+        // Fallback for when SW isn't ready
+        new Notification(title, { body: body });
+    }
+}
 
         authBtn.addEventListener('click', () => {
             Notification.requestPermission().then(permission => {
@@ -152,3 +161,4 @@
     </script>
 </body>
 </html>
+
