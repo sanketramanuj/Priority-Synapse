@@ -1,12 +1,15 @@
-const CACHE_NAME = 'brain-v1';
-const ASSETS = ['./index.html', './manifest.json'];
-
-// Install & Cache
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
-});
-
-// Stay active
-self.addEventListener('fetch', (e) => {
-  e.respondWith(caches.match(e.request).then(res => res || fetch(e.request)));
-});
+{
+  "name": "External Brain",
+  "short_name": "Brain",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192/4ade80/ffffff?text=B",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
