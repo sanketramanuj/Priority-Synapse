@@ -17,10 +17,19 @@
             outline: none; resize: none; line-height: 1.5; box-sizing: border-box; font-family: inherit;
         }
 
-        .dashboard { margin: 15px 0; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
+        /* --- NEW: Easy UI Quick Bar --- */
+        .quick-bar { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
+        .quick-bar button { 
+            flex: 0 0 auto; width: auto; min-width: 100px; padding: 12px 15px; 
+            background: #222; color: var(--accent); border: 1px solid #333; 
+            font-size: 0.75rem; margin-bottom: 0;
+        }
+
+        .dashboard { margin-bottom: 15px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
         .stat { border-left: 2px solid #333; padding-left: 10px; }
         .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
         .active { color: var(--accent); font-weight: bold; }
+        .highlight { color: #fff; font-weight: bold; }
 
         button {
             width: 100%; padding: 15px; background: var(--accent); color: #000;
@@ -35,13 +44,20 @@
     <h2>Core Log</h2>
     <textarea id="log" placeholder="e.g.&#10;10:30am Follow up Sanket&#10;2pm Client Meeting"></textarea>
 
+    <div class="quick-bar">
+        <button onclick="addQuick('Follow up')">+ Follow Up</button>
+        <button onclick="addQuick('Routine Task')">+ Routine</button>
+        <button onclick="addQuick('Sale Close')">+ Sale</button>
+        <button onclick="addQuick('Waiting For')">⏳ Waiting</button>
+    </div>
+
     <div class="dashboard">
         <div class="stat">
-            <span class="label">System</span>
-            <span id="status" class="active">OBSERVING</span>
+            <span class="label">Suggested Now</span>
+            <span id="suggestion-box" class="highlight">--</span>
         </div>
         <div class="stat">
-            <span class="label">Maintenance</span>
+            <span class="label">Maint</span>
             <span id="maint-timer">Water: 60m</span>
         </div>
         <div class="stat">
@@ -59,26 +75,42 @@
     <script>
         const log = document.getElementById('log');
         const authBtn = document.getElementById('auth-btn');
+        const suggestionBox = document.getElementById('suggestion-box');
         let waterTimer = 60;
 
-        // --- 1. NOTIFICATION ENGINE ---
-        function triggerNudge(title, body) {
-    // 1. Try to play sound (only works if app is open)
-    const sound = document.getElementById('nudge-sound');
-    if (sound) sound.play().catch(() => {});
+        // --- 1. FUTURE TIME LOGIC ---
+        function getFutureTime() {
+            const now = new Date();
+            let hrs = now.getHours() + 1; // Suggest the next hour
+            const ampm = hrs >= 12 && hrs < 24 ? 'pm' : 'am';
+            
+            let displayHrs = hrs % 12;
+            displayHrs = displayHrs === 0 ? 12 : displayHrs;
+            
+            return `${displayHrs}:00${ampm}`;
+        }
 
-    // 2. Tell the Service Worker to show the notification (Works while locked)
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-            type: 'TRIGGER_NUDGE',
-            title: title,
-            body: body
-        });
-    } else {
-        // Fallback for when SW isn't ready
-        new Notification(title, { body: body });
-    }
-}
+        function addQuick(type) {
+            const timeStr = getFutureTime();
+            const prefix = (log.value.length > 0 && !log.value.endsWith('\n')) ? "\n" : "";
+            log.value += `${prefix}${timeStr} ${type}: `;
+            log.scrollTop = log.scrollHeight;
+            log.focus();
+            processBrain();
+        }
+
+        // --- 2. NOTIFICATION ENGINE ---
+        function triggerNudge(title, body) {
+            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({
+                    type: 'TRIGGER_NUDGE',
+                    title: title,
+                    body: body
+                });
+            } else {
+                new Notification(title, { body: body });
+            }
+        }
 
         authBtn.addEventListener('click', () => {
             Notification.requestPermission().then(permission => {
@@ -87,12 +119,24 @@
                     authBtn.classList.add('active');
                     triggerNudge("External Brain", "Ready to carry the load.");
                 } else {
-                    alert("Please allow notifications in your phone settings.");
+                    alert("Please allow notifications in settings.");
                 }
             });
         });
 
-        // --- 2. THE BRAIN (Parser) ---
+        // --- 3. THE BRAIN (Parser & Suggestions) ---
+        function updateSuggestions() {
+            const hr = new Date().getHours();
+            let suggest = "";
+            if (hr >= 6 && hr < 9) suggest = "Planning";
+            else if (hr >= 9 && hr < 12) suggest = "Active Sales";
+            else if (hr >= 12 && hr < 14) suggest = "Follow-ups";
+            else if (hr >= 14 && hr < 17) suggest = "Routine/Admin";
+            else if (hr >= 17 && hr < 21) suggest = "Review/Closing";
+            else suggest = "Rest / Relax";
+            suggestionBox.innerText = suggest;
+        }
+
         function processBrain() {
             const content = log.value;
             localStorage.setItem('brain_data', content);
@@ -105,7 +149,6 @@
             let nextUp = null;
 
             lines.forEach(line => {
-                // Matches 10am, 10:30pm, 10:30 AM etc.
                 const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
                 if (timeMatch) {
                     let hrs = parseInt(timeMatch[1]);
@@ -118,12 +161,10 @@
                     const taskMins = hrs * 60 + mins;
                     const taskText = line.replace(timeMatch[0], '').trim();
 
-                    // IF EXACT MINUTE: Nudge
                     if (taskMins === currentTotalMins && !line.includes('[x]')) {
                         triggerNudge("Task Due", taskText);
                     }
 
-                    // FIND NEXT UPCOMING
                     if (taskMins > currentTotalMins && (!nextUp || taskMins < nextUp.time)) {
                         nextUp = { time: taskMins, text: taskText };
                     }
@@ -131,9 +172,10 @@
             });
 
             document.getElementById('next-task').innerText = nextUp ? nextUp.text : "None";
+            updateSuggestions();
         }
 
-        // --- 3. MAINTENANCE ENGINE ---
+        // --- 4. MAINTENANCE ENGINE ---
         setInterval(() => {
             waterTimer--;
             if (waterTimer <= 0) {
@@ -141,12 +183,10 @@
                 waterTimer = 60;
             }
             document.getElementById('maint-timer').innerText = `Water: ${waterTimer}m`;
-            
-            // Also run the parser every minute
             processBrain();
         }, 60000);
 
-        // --- 4. STARTUP ---
+        // --- 5. STARTUP ---
         window.onload = () => {
             log.value = localStorage.getItem('brain_data') || "";
             if (Notification.permission === "granted") {
@@ -161,4 +201,3 @@
     </script>
 </body>
 </html>
-
