@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>External Brain v4</title>
+    <title>External Brain v6</title>
+    <link rel="manifest" href="manifest.json">
     <style>
         :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --prof: #60a5fa; --soc: #f472b6; }
         body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
         
-        /* --- Pan Navigation --- */
+        /* Tab Navigation */
         .tabs { display: flex; gap: 5px; margin-bottom: 15px; background: #000; padding: 5px; border-radius: 12px; }
-        .tab { flex: 1; padding: 10px; text-align: center; font-size: 0.7rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; border: 1px solid #222; }
+        .tab { flex: 1; padding: 12px; text-align: center; font-size: 0.7rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; border: 1px solid #222; }
         .tab.active[data-type="pro"] { background: var(--prof); color: #000; border-color: var(--prof); }
         .tab.active[data-type="pers"] { background: var(--accent); color: #000; border-color: var(--accent); }
         .tab.active[data-type="soc"] { background: var(--soc); color: #000; border-color: var(--soc); }
 
-        h2 { font-size: 0.6rem; letter-spacing: 2px; color: var(--text); margin: 0 0 10px 0; text-transform: uppercase; }
+        h2 { font-size: 0.65rem; letter-spacing: 2px; color: var(--text); margin: 0 0 10px 0; text-transform: uppercase; }
         
         textarea { 
             flex-grow: 1; width: 100%; background: var(--panel); border: 1px solid #222;
@@ -26,12 +27,15 @@
         .quick-bar { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; padding-bottom: 5px; }
         .quick-bar button { flex: 0 0 auto; padding: 12px 15px; background: #222; color: #fff; border: 1px solid #333; font-size: 0.75rem; border-radius: 10px; }
 
+        /* Full Dashboard */
         .dashboard { margin-bottom: 15px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.7rem; }
         .stat { border-left: 2px solid #333; padding-left: 10px; }
         .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
-        .active-task { color: var(--accent); font-weight: bold; }
+        .active-val { color: var(--accent); font-weight: bold; }
+        .highlight { color: #fff; }
 
-        #auth-btn { width: 100%; padding: 15px; background: #222; color: var(--accent); border: 1px solid #333; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        #auth-btn { width: 100%; padding: 15px; background: var(--accent); color: #000; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        #auth-btn.active { background: #222; color: var(--accent); border: 1px solid #333; }
     </style>
 </head>
 <body>
@@ -43,7 +47,7 @@
     </div>
 
     <h2 id="log-title">Personal Log</h2>
-    <textarea id="log" placeholder="Schedule your day..."></textarea>
+    <textarea id="log" placeholder="Schedule tasks..."></textarea>
 
     <div class="quick-bar">
         <button onclick="addQuick('Task')">+ Task</button>
@@ -53,37 +57,57 @@
     </div>
 
     <div class="dashboard">
-        <div class="stat"><span class="label">Focus</span><span id="suggestion-box" style="color:#fff">--</span></div>
-        <div class="stat"><span class="label">Next Up</span><span id="next-task" class="active-task">None</span></div>
+        <div class="stat"><span class="label">System</span><span id="status" class="active-val">OBSERVING</span></div>
+        <div class="stat"><span class="label">Maintenance</span><span id="maint-timer" class="highlight">Water: 60m</span></div>
+        <div class="stat"><span class="label">Next Task</span><span id="next-task" class="active-val">None</span></div>
+        <div class="stat"><span class="label">Last Sync</span><span id="sync-val" class="highlight">--:--</span></div>
     </div>
 
-    <button id="auth-btn">ENABLE NOTIFICATIONS</button>
+    <button id="auth-btn">ENABLE EXTERNAL BRAIN</button>
 
     <script>
         let currentTab = 'pers';
+        let waterTimer = 60;
         const log = document.getElementById('log');
-        const suggestionBox = document.getElementById('suggestion-box');
+        const authBtn = document.getElementById('auth-btn');
 
-        const tabData = {
+        const tabConfig = {
             pers: { title: "Personal Log", accent: "#4ade80" },
             pro: { title: "Professional Log", accent: "#60a5fa" },
             soc: { title: "Social Log", accent: "#f472b6" }
         };
 
+        // --- NOTIFICATION ENGINE ---
+        function triggerNudge(title, body) {
+            if (Notification.permission === "granted") {
+                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: 'TRIGGER_NUDGE', title, body });
+                } else {
+                    new Notification(title, { body });
+                }
+            }
+        }
+
+        authBtn.addEventListener('click', () => {
+            Notification.requestPermission().then(p => {
+                if (p === "granted") {
+                    authBtn.innerText = "SYSTEM ACTIVE ✅";
+                    authBtn.classList.add('active');
+                    triggerNudge("System", "Brain Online");
+                }
+            });
+        });
+
+        // --- CORE LOGIC ---
         function switchTab(type) {
-            // Save current
             localStorage.setItem(`brain_data_${currentTab}`, log.value);
-            
-            // Switch UI
             currentTab = type;
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelector(`.tab[data-type="${type}"]`).classList.add('active');
             
-            // Load new
             log.value = localStorage.getItem(`brain_data_${type}`) || "";
-            document.getElementById('log-title').innerText = tabData[type].title;
-            document.getElementById('log-title').style.color = tabData[type].accent;
-            
+            document.getElementById('log-title').innerText = tabConfig[type].title;
+            document.getElementById('log-title').style.color = tabConfig[type].accent;
             processBrain();
         }
 
@@ -131,24 +155,49 @@
 
         function processBrain() {
             localStorage.setItem(`brain_data_${currentTab}`, log.value);
-            const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
-            let next = null;
-
-            log.value.split('\n').forEach(line => {
-                const t = parseTime(line);
-                if (t !== null && t > nowMins && (!next || t < next.time)) {
-                    next = { time: t, text: line.replace(/.*(am|pm)/i, '').trim() };
-                }
-            });
-            document.getElementById('next-task').innerText = next ? next.text : "None";
+            document.getElementById('sync-val').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
-            const hr = new Date().getHours();
-            suggestionBox.innerText = hr < 12 ? "Morning Momentum" : hr < 17 ? "Deep Work" : "Evening Wind-down";
+            const now = new Date();
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            let crossPaneNext = null;
+
+            ['pers', 'pro', 'soc'].forEach(pane => {
+                const data = (pane === currentTab) ? log.value : (localStorage.getItem(`brain_data_${pane}`) || "");
+                data.split('\n').forEach(line => {
+                    const t = parseTime(line);
+                    if (t !== null) {
+                        const taskText = line.replace(/.*(am|pm)/i, '').trim();
+                        if (t === nowMins && !line.includes('[x]')) {
+                            triggerNudge(`${pane.toUpperCase()} Task`, taskText);
+                        }
+                        if (t > nowMins && (!crossPaneNext || t < crossPaneNext.time)) {
+                            crossPaneNext = { time: t, text: taskText };
+                        }
+                    }
+                });
+            });
+            document.getElementById('next-task').innerText = crossPaneNext ? crossPaneNext.text : "None";
         }
+
+        // --- TIMERS ---
+        setInterval(() => {
+            waterTimer--;
+            if (waterTimer <= 0) {
+                triggerNudge("Maintenance", "Drink water and stretch.");
+                waterTimer = 60;
+            }
+            document.getElementById('maint-timer').innerText = `Water: ${waterTimer}m`;
+            processBrain();
+        }, 60000);
 
         window.onload = () => {
             log.value = localStorage.getItem('brain_data_pers') || "";
+            if (Notification.permission === "granted") {
+                authBtn.innerText = "SYSTEM ACTIVE ✅";
+                authBtn.classList.add('active');
+            }
             processBrain();
+            if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
         };
 
         log.addEventListener('input', processBrain);
