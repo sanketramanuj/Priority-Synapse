@@ -54,89 +54,84 @@
 </button>
 
     <script>
-        const log = document.getElementById('log');
-        const nextNudgeDisp = document.getElementById('next-nudge');
-        let maintenanceTimer = 60; // minutes
+     const log = document.getElementById('log');
+const nextNudgeDisp = document.getElementById('next-nudge');
+let maintenanceTimer = 60;
 
-        // 1. SAVE & PARSE
-        log.addEventListener('input', () => {
-            localStorage.setItem('brain_data', log.value);
-            document.getElementById('sync').innerText = "Last: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            findNextTask();
+// 1. SAVE & PARSE
+log.addEventListener('input', () => {
+    localStorage.setItem('brain_data', log.value);
+    document.getElementById('sync').innerText = "Last: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    findNextTask();
+});
+
+// 2. THE NUDGE FUNCTION (Fixed)
+function sendNudge(title, body) {
+    if (Notification.permission === "granted") {
+        new Notification(title, { 
+            body: body,
+            icon: 'https://via.placeholder.com/128/4ade80/000000?text=B' 
         });
-
-        // 2. THE INTELLIGENCE (Time Parser)
-        function findNextTask() {
-            const lines = log.value.split('\n');
-            const now = new Date();
-            const currentTimeStr = now.getHours() * 60 + now.getMinutes();
-            
-            let upcoming = null;
-
-            lines.forEach(line => {
-                const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
-                if (timeMatch) {
-                    let hrs = parseInt(timeMatch[1]);
-                    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-                    const ampm = timeMatch[3].toLowerCase();
-
-                    if (ampm === 'pm' && hrs < 12) hrs += 12;
-                    if (ampm === 'am' && hrs === 12) hrs = 0;
-
-                    const taskTime = hrs * 60 + mins;
-                    if (taskTime > currentTimeStr && (!upcoming || taskTime < upcoming.time)) {
-                        upcoming = { time: taskTime, text: line.replace(timeMatch[0], '').trim() };
-                    }
-                }
-            });
-
-            if (upcoming) {
-                nextNudgeDisp.innerText = upcoming.text;
-                nextNudgeDisp.classList.add('active');
-            } else {
-                nextNudgeDisp.innerText = "No upcoming tasks";
-                nextNudgeDisp.classList.remove('active');
-            }
-        }
-
-        // 3. HUMAN MAINTENANCE (The "Calm Nudge")
-        setInterval(() => {
-            maintenanceTimer--;
-            if (maintenanceTimer <= 0) {
-                sendNudge("Human Maintenance", "Stretch and drink water. You've been focused too long.");
-                maintenanceTimer = 60; // Reset
-            }
-            document.getElementById('maintenance').innerText = `Next: Water (${maintenanceTimer}m)`;
-        }, 60000);
-
-        function sendNudge(title, body) {
-            if (Notification.permission === "granted") {
+    } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+            if (permission === "granted") {
                 new Notification(title, { body: body });
             }
-        }
-
-        // 4. BOOT UP
-        window.onload = () => {
-            log.value = localStorage.getItem('brain_data') || "";
-            if (Notification.permission !== "granted") Notification.requestPermission();
-            findNextTask();
-        };
-        // Register the Service Worker
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('sw.js');
+        });
+    }
 }
 
-// Keep-Alive Logic: 
-// This triggers every minute to check if a nudge is due
-setInterval(() => {
-    findNextTask(); // Logic already in your file
-}, 60000);
-        
+// 3. THE INTELLIGENCE
+function findNextTask() {
+    const lines = log.value.split('\n');
+    const now = new Date();
+    const currentTimeStr = now.getHours() * 60 + now.getMinutes();
+    
+    let upcoming = null;
+
+    lines.forEach(line => {
+        const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+        if (timeMatch) {
+            let hrs = parseInt(timeMatch[1]);
+            const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+            const ampm = timeMatch[3].toLowerCase();
+            if (ampm === 'pm' && hrs < 12) hrs += 12;
+            if (ampm === 'am' && hrs === 12) hrs = 0;
+            const taskTime = hrs * 60 + mins;
+            
+            // If the time is EXACTLY now, trigger nudge
+            if (taskTime === currentTimeStr) {
+                sendNudge("Task Alert", line.replace(timeMatch[0], '').trim());
+            }
+
+            if (taskTime > currentTimeStr && (!upcoming || taskTime < upcoming.time)) {
+                upcoming = { time: taskTime, text: line.replace(timeMatch[0], '').trim() };
+            }
+        }
+    });
+
+    if (upcoming) {
+        nextNudgeDisp.innerText = upcoming.text;
+    }
+}
+
+// 4. BOOT UP
+window.onload = () => {
+    log.value = localStorage.getItem('brain_data') || "";
+    findNextTask();
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+};
+
+// Check every minute
+setInterval(findNextTask, 60000);
     </script>
    
 </body>
 
 </html>
+
 
 
 
