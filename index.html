@@ -3,13 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>External Brain</title>
-    <link rel="manifest" href="manifest.json">
+    <title>External Brain v4</title>
     <style>
-        :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --strict: #f87171; }
+        :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --prof: #60a5fa; --soc: #f472b6; }
         body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
         
-        h2 { font-size: 0.7rem; letter-spacing: 2px; color: var(--accent); margin: 0 0 10px 0; text-transform: uppercase; }
+        /* --- Pan Navigation --- */
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; background: #000; padding: 5px; border-radius: 12px; }
+        .tab { flex: 1; padding: 10px; text-align: center; font-size: 0.7rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; border: 1px solid #222; }
+        .tab.active[data-type="pro"] { background: var(--prof); color: #000; border-color: var(--prof); }
+        .tab.active[data-type="pers"] { background: var(--accent); color: #000; border-color: var(--accent); }
+        .tab.active[data-type="soc"] { background: var(--soc); color: #000; border-color: var(--soc); }
+
+        h2 { font-size: 0.6rem; letter-spacing: 2px; color: var(--text); margin: 0 0 10px 0; text-transform: uppercase; }
         
         textarea { 
             flex-grow: 1; width: 100%; background: var(--panel); border: 1px solid #222;
@@ -17,187 +23,136 @@
             outline: none; resize: none; line-height: 1.5; box-sizing: border-box; font-family: inherit;
         }
 
-        /* --- NEW: Easy UI Quick Bar --- */
-        .quick-bar { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; padding-bottom: 5px; -webkit-overflow-scrolling: touch; }
-        .quick-bar button { 
-            flex: 0 0 auto; width: auto; min-width: 100px; padding: 12px 15px; 
-            background: #222; color: var(--accent); border: 1px solid #333; 
-            font-size: 0.75rem; margin-bottom: 0;
-        }
+        .quick-bar { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; padding-bottom: 5px; }
+        .quick-bar button { flex: 0 0 auto; padding: 12px 15px; background: #222; color: #fff; border: 1px solid #333; font-size: 0.75rem; border-radius: 10px; }
 
-        .dashboard { margin-bottom: 15px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
+        .dashboard { margin-bottom: 15px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.7rem; }
         .stat { border-left: 2px solid #333; padding-left: 10px; }
         .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
-        .active { color: var(--accent); font-weight: bold; }
-        .highlight { color: #fff; font-weight: bold; }
+        .active-task { color: var(--accent); font-weight: bold; }
 
-        button {
-            width: 100%; padding: 15px; background: var(--accent); color: #000;
-            border: none; border-radius: 12px; font-weight: bold; font-size: 0.9rem;
-            cursor: pointer; margin-bottom: 10px;
-        }
-        #auth-btn.active { background: #222; color: var(--accent); border: 1px solid #333; }
+        #auth-btn { width: 100%; padding: 15px; background: #222; color: var(--accent); border: 1px solid #333; border-radius: 12px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <h2>Core Log</h2>
-    <textarea id="log" placeholder="e.g.&#10;10:30am Follow up Sanket&#10;2pm Client Meeting"></textarea>
+    <div class="tabs">
+        <div class="tab active" data-type="pers" onclick="switchTab('pers')">Personal</div>
+        <div class="tab" data-type="pro" onclick="switchTab('pro')">Professional</div>
+        <div class="tab" data-type="soc" onclick="switchTab('soc')">Social</div>
+    </div>
+
+    <h2 id="log-title">Personal Log</h2>
+    <textarea id="log" placeholder="Schedule your day..."></textarea>
 
     <div class="quick-bar">
-        <button onclick="addQuick('Follow up')">+ Follow Up</button>
-        <button onclick="addQuick('Routine Task')">+ Routine</button>
-        <button onclick="addQuick('Sale Close')">+ Sale</button>
-        <button onclick="addQuick('Waiting For')">⏳ Waiting</button>
+        <button onclick="addQuick('Task')">+ Task</button>
+        <button onclick="addQuick('Follow up')">+ Follow</button>
+        <button onclick="addQuick('Waiting')">⏳ Wait</button>
+        <button onclick="autoArrange()" style="border-color: var(--accent);">⚡ Sort</button>
     </div>
 
     <div class="dashboard">
-        <div class="stat">
-            <span class="label">Suggested Now</span>
-            <span id="suggestion-box" class="highlight">--</span>
-        </div>
-        <div class="stat">
-            <span class="label">Maint</span>
-            <span id="maint-timer">Water: 60m</span>
-        </div>
-        <div class="stat">
-            <span class="label">Next Task</span>
-            <span id="next-task" class="active">None</span>
-        </div>
-        <div class="stat">
-            <span class="label">Sync</span>
-            <span id="sync-val">--:--</span>
-        </div>
+        <div class="stat"><span class="label">Focus</span><span id="suggestion-box" style="color:#fff">--</span></div>
+        <div class="stat"><span class="label">Next Up</span><span id="next-task" class="active-task">None</span></div>
     </div>
 
-    <button id="auth-btn">ENABLE EXTERNAL BRAIN</button>
+    <button id="auth-btn">ENABLE NOTIFICATIONS</button>
 
     <script>
+        let currentTab = 'pers';
         const log = document.getElementById('log');
-        const authBtn = document.getElementById('auth-btn');
         const suggestionBox = document.getElementById('suggestion-box');
-        let waterTimer = 60;
 
-        // --- 1. FUTURE TIME LOGIC ---
-        function getFutureTime() {
+        const tabData = {
+            pers: { title: "Personal Log", accent: "#4ade80" },
+            pro: { title: "Professional Log", accent: "#60a5fa" },
+            soc: { title: "Social Log", accent: "#f472b6" }
+        };
+
+        function switchTab(type) {
+            // Save current
+            localStorage.setItem(`brain_data_${currentTab}`, log.value);
+            
+            // Switch UI
+            currentTab = type;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.tab[data-type="${type}"]`).classList.add('active');
+            
+            // Load new
+            log.value = localStorage.getItem(`brain_data_${type}`) || "";
+            document.getElementById('log-title').innerText = tabData[type].title;
+            document.getElementById('log-title').style.color = tabData[type].accent;
+            
+            processBrain();
+        }
+
+        function parseTime(line) {
+            const match = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+            if (!match) return null;
+            let h = parseInt(match[1]);
+            const m = match[2] ? parseInt(match[2]) : 0;
+            const p = match[3].toLowerCase();
+            if (p === 'pm' && h < 12) h += 12;
+            if (p === 'am' && h === 12) h = 0;
+            return h * 60 + m;
+        }
+
+        function autoArrange() {
+            const lines = log.value.trim().split('\n').filter(l => l.trim() !== "");
+            lines.sort((a, b) => (parseTime(a) || 9999) - (parseTime(b) || 9999));
+            log.value = lines.join('\n');
+            processBrain();
+        }
+
+        function getSmartFutureTime() {
+            let lastMins = 0;
+            log.value.split('\n').forEach(l => {
+                const t = parseTime(l);
+                if (t > lastMins) lastMins = t;
+            });
             const now = new Date();
-            let hrs = now.getHours() + 1; // Suggest the next hour
-            const ampm = hrs >= 12 && hrs < 24 ? 'pm' : 'am';
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            let suggest = Math.max(nowMins + 30, lastMins + 30);
             
-            let displayHrs = hrs % 12;
-            displayHrs = displayHrs === 0 ? 12 : displayHrs;
-            
-            return `${displayHrs}:00${ampm}`;
+            let h = Math.floor(suggest / 60) % 24;
+            let m = suggest % 60;
+            const ampm = h >= 12 ? 'pm' : 'am';
+            h = h % 12 || 12;
+            return `${h}:${m.toString().padStart(2, '0')}${ampm}`;
         }
 
         function addQuick(type) {
-            const timeStr = getFutureTime();
-            const prefix = (log.value.length > 0 && !log.value.endsWith('\n')) ? "\n" : "";
-            log.value += `${prefix}${timeStr} ${type}: `;
-            log.scrollTop = log.scrollHeight;
+            const timeStr = getSmartFutureTime();
+            log.value += (log.value ? "\n" : "") + `${timeStr} ${type}: `;
             log.focus();
-            processBrain();
-        }
-
-        // --- 2. NOTIFICATION ENGINE ---
-        function triggerNudge(title, body) {
-            if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                navigator.serviceWorker.controller.postMessage({
-                    type: 'TRIGGER_NUDGE',
-                    title: title,
-                    body: body
-                });
-            } else {
-                new Notification(title, { body: body });
-            }
-        }
-
-        authBtn.addEventListener('click', () => {
-            Notification.requestPermission().then(permission => {
-                if (permission === "granted") {
-                    authBtn.innerText = "SYSTEM ACTIVE ✅";
-                    authBtn.classList.add('active');
-                    triggerNudge("External Brain", "Ready to carry the load.");
-                } else {
-                    alert("Please allow notifications in settings.");
-                }
-            });
-        });
-
-        // --- 3. THE BRAIN (Parser & Suggestions) ---
-        function updateSuggestions() {
-            const hr = new Date().getHours();
-            let suggest = "";
-            if (hr >= 6 && hr < 9) suggest = "Planning";
-            else if (hr >= 9 && hr < 12) suggest = "Active Sales";
-            else if (hr >= 12 && hr < 14) suggest = "Follow-ups";
-            else if (hr >= 14 && hr < 17) suggest = "Routine/Admin";
-            else if (hr >= 17 && hr < 21) suggest = "Review/Closing";
-            else suggest = "Rest / Relax";
-            suggestionBox.innerText = suggest;
+            autoArrange();
         }
 
         function processBrain() {
-            const content = log.value;
-            localStorage.setItem('brain_data', content);
-            document.getElementById('sync-val').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            localStorage.setItem(`brain_data_${currentTab}`, log.value);
+            const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
+            let next = null;
 
-            const now = new Date();
-            const currentTotalMins = now.getHours() * 60 + now.getMinutes();
-            const lines = content.split('\n');
-            
-            let nextUp = null;
-
-            lines.forEach(line => {
-                const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
-                if (timeMatch) {
-                    let hrs = parseInt(timeMatch[1]);
-                    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-                    const ampm = timeMatch[3].toLowerCase();
-
-                    if (ampm === 'pm' && hrs < 12) hrs += 12;
-                    if (ampm === 'am' && hrs === 12) hrs = 0;
-
-                    const taskMins = hrs * 60 + mins;
-                    const taskText = line.replace(timeMatch[0], '').trim();
-
-                    if (taskMins === currentTotalMins && !line.includes('[x]')) {
-                        triggerNudge("Task Due", taskText);
-                    }
-
-                    if (taskMins > currentTotalMins && (!nextUp || taskMins < nextUp.time)) {
-                        nextUp = { time: taskMins, text: taskText };
-                    }
+            log.value.split('\n').forEach(line => {
+                const t = parseTime(line);
+                if (t !== null && t > nowMins && (!next || t < next.time)) {
+                    next = { time: t, text: line.replace(/.*(am|pm)/i, '').trim() };
                 }
             });
-
-            document.getElementById('next-task').innerText = nextUp ? nextUp.text : "None";
-            updateSuggestions();
+            document.getElementById('next-task').innerText = next ? next.text : "None";
+            
+            const hr = new Date().getHours();
+            suggestionBox.innerText = hr < 12 ? "Morning Momentum" : hr < 17 ? "Deep Work" : "Evening Wind-down";
         }
 
-        // --- 4. MAINTENANCE ENGINE ---
-        setInterval(() => {
-            waterTimer--;
-            if (waterTimer <= 0) {
-                triggerNudge("Maintenance", "Drink water and stretch.");
-                waterTimer = 60;
-            }
-            document.getElementById('maint-timer').innerText = `Water: ${waterTimer}m`;
-            processBrain();
-        }, 60000);
-
-        // --- 5. STARTUP ---
         window.onload = () => {
-            log.value = localStorage.getItem('brain_data') || "";
-            if (Notification.permission === "granted") {
-                authBtn.innerText = "SYSTEM ACTIVE ✅";
-                authBtn.classList.add('active');
-            }
+            log.value = localStorage.getItem('brain_data_pers') || "";
             processBrain();
-            if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
         };
 
         log.addEventListener('input', processBrain);
+        log.addEventListener('keydown', (e) => { if(e.key === 'Enter') setTimeout(autoArrange, 100); });
     </script>
 </body>
 </html>
