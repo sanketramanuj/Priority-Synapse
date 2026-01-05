@@ -118,7 +118,19 @@
             if (Notification.permission !== "granted") Notification.requestPermission();
             findNextTask();
         };
+        // Register the Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+}
+
+// Keep-Alive Logic: 
+// This triggers every minute to check if a nudge is due
+setInterval(() => {
+    findNextTask(); // Logic already in your file
+}, 60000);
+        
     </script>
 </body>
 
 </html>
+
