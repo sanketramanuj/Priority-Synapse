@@ -1,138 +1,154 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <link rel="manifest" href="manifest.json">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>External Brain</title>
+    <link rel="manifest" href="manifest.json">
     <style>
         :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --strict: #f87171; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; height: 90vh; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
         
-        /* The Brain Input */
-        h2 { font-size: 0.8rem; letter-spacing: 2px; color: var(--accent); margin-bottom: 10px; }
+        h2 { font-size: 0.7rem; letter-spacing: 2px; color: var(--accent); margin: 0 0 10px 0; text-transform: uppercase; }
+        
         textarea { 
             flex-grow: 1; width: 100%; background: var(--panel); border: 1px solid #222;
             color: #eee; padding: 15px; font-size: 16px; border-radius: 12px;
-            outline: none; resize: none; line-height: 1.5; box-sizing: border-box;
+            outline: none; resize: none; line-height: 1.5; box-sizing: border-box; font-family: inherit;
         }
 
-        /* The Dashboard */
-        .dashboard { margin-top: 20px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
+        .dashboard { margin: 15px 0; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.75rem; }
         .stat { border-left: 2px solid #333; padding-left: 10px; }
         .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
-        
-        .active { color: var(--accent); }
-        .alert { color: var(--strict); }
+        .active { color: var(--accent); font-weight: bold; }
+
+        button {
+            width: 100%; padding: 15px; background: var(--accent); color: #000;
+            border: none; border-radius: 12px; font-weight: bold; font-size: 0.9rem;
+            cursor: pointer; margin-bottom: 10px;
+        }
+        #auth-btn.active { background: #222; color: var(--accent); border: 1px solid #333; }
     </style>
 </head>
 <body>
 
-    <h2>CORE LOG (TEXT ONLY)</h2>
-    <textarea id="log" placeholder="9am Start&#10;11am Call client&#10;2pm Sanket meeting&#10;6pm Wrap up"></textarea>
+    <h2>Core Log</h2>
+    <textarea id="log" placeholder="e.g.&#10;10:30am Follow up Sanket&#10;2pm Client Meeting"></textarea>
 
     <div class="dashboard">
         <div class="stat">
-            <span class="label">System Status</span>
-            <span id="status" class="active">OBSERVING...</span>
+            <span class="label">System</span>
+            <span id="status" class="active">OBSERVING</span>
         </div>
         <div class="stat">
             <span class="label">Maintenance</span>
-            <span id="maintenance">Next: Water (45m)</span>
+            <span id="maint-timer">Water: 60m</span>
         </div>
         <div class="stat">
-            <span class="label">Next Nudge</span>
-            <span id="next-nudge">Waiting for time...</span>
+            <span class="label">Next Task</span>
+            <span id="next-task" class="active">None</span>
         </div>
         <div class="stat">
-            <span class="label">Local Sync</span>
-            <span id="sync">Last: Just now</span>
+            <span class="label">Sync</span>
+            <span id="sync-val">--:--</span>
         </div>
     </div>
-     <button onclick="sendNudge('Test', 'This is a silent nudge.')" style="margin-top:20px; padding:10px; background:var(--accent); border:none; border-radius:5px;">
-    Test Notification Now
-</button>
+
+    <button id="auth-btn">ENABLE EXTERNAL BRAIN</button>
 
     <script>
-     const log = document.getElementById('log');
-const nextNudgeDisp = document.getElementById('next-nudge');
-let maintenanceTimer = 60;
+        const log = document.getElementById('log');
+        const authBtn = document.getElementById('auth-btn');
+        let waterTimer = 60;
 
-// 1. SAVE & PARSE
-log.addEventListener('input', () => {
-    localStorage.setItem('brain_data', log.value);
-    document.getElementById('sync').innerText = "Last: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    findNextTask();
-});
-
-// 2. THE NUDGE FUNCTION (Fixed)
-function sendNudge(title, body) {
-    if (Notification.permission === "granted") {
-        new Notification(title, { 
-            body: body,
-            icon: 'https://via.placeholder.com/128/4ade80/000000?text=B' 
-        });
-    } else if (Notification.permission !== "denied") {
-        Notification.requestPermission().then(permission => {
-            if (permission === "granted") {
-                new Notification(title, { body: body });
-            }
-        });
-    }
-}
-
-// 3. THE INTELLIGENCE
-function findNextTask() {
-    const lines = log.value.split('\n');
-    const now = new Date();
-    const currentTimeStr = now.getHours() * 60 + now.getMinutes();
-    
-    let upcoming = null;
-
-    lines.forEach(line => {
-        const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
-        if (timeMatch) {
-            let hrs = parseInt(timeMatch[1]);
-            const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-            const ampm = timeMatch[3].toLowerCase();
-            if (ampm === 'pm' && hrs < 12) hrs += 12;
-            if (ampm === 'am' && hrs === 12) hrs = 0;
-            const taskTime = hrs * 60 + mins;
-            
-            // If the time is EXACTLY now, trigger nudge
-            if (taskTime === currentTimeStr) {
-                sendNudge("Task Alert", line.replace(timeMatch[0], '').trim());
-            }
-
-            if (taskTime > currentTimeStr && (!upcoming || taskTime < upcoming.time)) {
-                upcoming = { time: taskTime, text: line.replace(timeMatch[0], '').trim() };
+        // --- 1. NOTIFICATION ENGINE ---
+        function triggerNudge(title, body) {
+            if (Notification.permission === "granted") {
+                new Notification(title, { 
+                    body: body,
+                    icon: 'https://via.placeholder.com/128/4ade80/000000?text=B'
+                });
             }
         }
-    });
 
-    if (upcoming) {
-        nextNudgeDisp.innerText = upcoming.text;
-    }
-}
+        authBtn.addEventListener('click', () => {
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    authBtn.innerText = "SYSTEM ACTIVE ✅";
+                    authBtn.classList.add('active');
+                    triggerNudge("External Brain", "Ready to carry the load.");
+                } else {
+                    alert("Please allow notifications in your phone settings.");
+                }
+            });
+        });
 
-// 4. BOOT UP
-window.onload = () => {
-    log.value = localStorage.getItem('brain_data') || "";
-    findNextTask();
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-    }
-};
+        // --- 2. THE BRAIN (Parser) ---
+        function processBrain() {
+            const content = log.value;
+            localStorage.setItem('brain_data', content);
+            document.getElementById('sync-val').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
 
-// Check every minute
-setInterval(findNextTask, 60000);
+            const now = new Date();
+            const currentTotalMins = now.getHours() * 60 + now.getMinutes();
+            const lines = content.split('\n');
+            
+            let nextUp = null;
+
+            lines.forEach(line => {
+                // Matches 10am, 10:30pm, 10:30 AM etc.
+                const timeMatch = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+                if (timeMatch) {
+                    let hrs = parseInt(timeMatch[1]);
+                    const mins = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+                    const ampm = timeMatch[3].toLowerCase();
+
+                    if (ampm === 'pm' && hrs < 12) hrs += 12;
+                    if (ampm === 'am' && hrs === 12) hrs = 0;
+
+                    const taskMins = hrs * 60 + mins;
+                    const taskText = line.replace(timeMatch[0], '').trim();
+
+                    // IF EXACT MINUTE: Nudge
+                    if (taskMins === currentTotalMins && !line.includes('[x]')) {
+                        triggerNudge("Task Due", taskText);
+                    }
+
+                    // FIND NEXT UPCOMING
+                    if (taskMins > currentTotalMins && (!nextUp || taskMins < nextUp.time)) {
+                        nextUp = { time: taskMins, text: taskText };
+                    }
+                }
+            });
+
+            document.getElementById('next-task').innerText = nextUp ? nextUp.text : "None";
+        }
+
+        // --- 3. MAINTENANCE ENGINE ---
+        setInterval(() => {
+            waterTimer--;
+            if (waterTimer <= 0) {
+                triggerNudge("Maintenance", "Drink water and stretch.");
+                waterTimer = 60;
+            }
+            document.getElementById('maint-timer').innerText = `Water: ${waterTimer}m`;
+            
+            // Also run the parser every minute
+            processBrain();
+        }, 60000);
+
+        // --- 4. STARTUP ---
+        window.onload = () => {
+            log.value = localStorage.getItem('brain_data') || "";
+            if (Notification.permission === "granted") {
+                authBtn.innerText = "SYSTEM ACTIVE ✅";
+                authBtn.classList.add('active');
+            }
+            processBrain();
+            if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
+        };
+
+        log.addEventListener('input', processBrain);
     </script>
-   
 </body>
-
 </html>
-
-
-
-
-
