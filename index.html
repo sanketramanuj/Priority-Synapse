@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Priority Synapse | Center Hub</title>
+    <title>Priority Synapse | Group Move</title>
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="mobile-web-app-capable" content="yes">
     
     <style>
         :root {
@@ -28,14 +27,12 @@
             background: #05050a; color: white; overflow: hidden; user-select: none;
         }
 
-        /* 70/30 Row Split */
         #matrix { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
-            grid-template-rows: 70vh 30vh; 
-            height: 100vh; 
-            gap: 10px; 
-            padding: 10px;
+            grid-template-rows: 70% 30%; 
+            height: 100%; width: 100%;
+            gap: 10px; padding: 10px;
             padding-top: env(safe-area-inset-top);
             position: relative;
         }
@@ -43,75 +40,65 @@
         .quadrant { 
             border-radius: 15px; display: flex; flex-direction: column; 
             padding: 12px; border: 1px solid rgba(255,255,255,0.05); 
-            min-height: 0; position: relative;
+            min-height: 0; position: relative; overflow: hidden;
         }
         .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
         .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
 
         .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; flex-shrink: 0; }
-        .action-list { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 20px; }
+        .action-list { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 30px; }
         .action-list::-webkit-scrollbar { display: none; }
 
         .action-item { 
             background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 8px; 
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid rgba(255,255,255,0.1); touch-action: pan-y;
+            border: 1px solid rgba(255,255,255,0.1); touch-action: none;
+            transition: border 0.2s, box-shadow 0.2s;
         }
 
-        /* CENTER FLOATING HUB */
+        /* Multi-Select Style */
+        .selected-item {
+            border: 2px solid #fff !important;
+            background: rgba(255, 255, 255, 0.2) !important;
+            box-shadow: 0 0 15px rgba(255,255,255,0.4);
+        }
+
+        /* HUB STYLING */
         #hub-container {
-            position: fixed;
-            left: 50%;
-            top: 70vh; /* Positioned at the horizontal line of the 70/30 split */
-            transform: translate(-50%, -50%);
-            z-index: 3000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            position: absolute; left: 50%; top: 70%; 
+            transform: translate(-50%, -50%); z-index: 3000;
+            display: flex; align-items: center; justify-content: center;
         }
 
         #hub-trigger {
-            width: 55px; height: 55px; border-radius: 50%;
+            width: 50px; height: 50px; border-radius: 50%;
             background: white; color: black; font-size: 24px;
             display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 0 20px rgba(255,255,255,0.3);
-            font-weight: bold; transition: 0.3s;
-            border: 4px solid #05050a;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            font-weight: bold; transition: 0.3s; border: 3px solid #05050a;
         }
 
         #hub-menu {
-            position: absolute;
-            display: flex;
-            gap: 15px;
-            opacity: 0;
-            pointer-events: none;
-            transition: 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
-            transform: translateY(0);
+            position: absolute; display: flex; gap: 12px;
+            opacity: 0; pointer-events: none; transition: 0.3s;
         }
 
-        #hub-container.open #hub-menu {
-            opacity: 1;
-            pointer-events: auto;
-            transform: translateY(-70px); /* Pops up above the trigger */
-        }
+        #hub-container.open #hub-menu { opacity: 1; pointer-events: auto; transform: translateY(-65px); }
+        #hub-container.open #hub-trigger { transform: rotate(45deg); background: #ff5f6d; color: white; }
 
-        #hub-container.open #hub-trigger {
-            transform: rotate(45deg);
-            background: #ff5f6d;
-            color: white;
-        }
+        .hub-btn { width: 45px; height: 45px; border-radius: 50%; border: none; background: white; font-size: 18px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
 
-        .hub-btn {
-            width: 50px; height: 50px; border-radius: 50%; border: none;
-            background: white; color: black; font-size: 18px;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-
+        /* Drag Visuals */
         .dragging-active { 
             position: fixed !important; pointer-events: none !important; 
             opacity: 0.9; z-index: 9999; width: 140px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6); transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); transform: scale(1.1);
+        }
+        
+        .group-count-badge {
+            position: absolute; top: -10px; right: -10px;
+            background: #ff5f6d; color: white; font-size: 10px;
+            padding: 4px 8px; border-radius: 10px; font-weight: 900;
         }
 
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999; display:none; }
@@ -131,7 +118,7 @@
             <button class="hub-btn" onclick="addManual()">➕</button>
             <button class="hub-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
         </div>
-        <div id="hub-trigger" onclick="toggleHub()">+</div>
+        <div id="hub-trigger" onclick="toggleHub(event)">+</div>
     </div>
 </div>
 
@@ -148,8 +135,8 @@
 <script>
     let actions = JSON.parse(localStorage.getItem('synapse_vFinal')) || [];
     let dragClone = null;
-    let activeTaskId = null;
     let dragTimeout;
+    let selectedTaskIds = new Set(); // Stores multiple IDs
 
     function ensureFullScreen() {
         if (!document.fullscreenElement) {
@@ -157,7 +144,8 @@
         }
     }
 
-    function toggleHub() {
+    function toggleHub(e) {
+        e.stopPropagation();
         document.getElementById('hub-container').classList.toggle('open');
     }
 
@@ -167,9 +155,10 @@
     }
 
     function updateBadges() {
-        const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
-        actions.forEach(a => counts[a.quad]++);
-        ['q1','q2','q3','q4'].forEach(q => document.getElementById(`badge-${q}`).innerText = counts[q]);
+        ['q1','q2','q3','q4'].forEach(q => {
+            const count = actions.filter(a => a.quad === q).length;
+            document.getElementById(`badge-${q}`).innerText = count;
+        });
     }
 
     function initTouchEvents(el, task) {
@@ -180,6 +169,7 @@
 
             clearTimeout(el.tapTimer);
             el.tapTimer = setTimeout(() => {
+                // TRIPLE TAP -> EDIT
                 if (parseInt(el.dataset.taps) >= 3) {
                     const edit = prompt("Edit Task:", task.text);
                     if (edit !== null && edit.trim() !== "") {
@@ -187,18 +177,43 @@
                         save(); render();
                         setTimeout(ensureFullScreen, 500);
                     }
+                } 
+                // DOUBLE TAP -> MULTI-SELECT TOGGLE
+                else if (parseInt(el.dataset.taps) === 2) {
+                    if (selectedTaskIds.has(task.id)) {
+                        selectedTaskIds.delete(task.id);
+                        el.classList.remove('selected-item');
+                    } else {
+                        selectedTaskIds.add(task.id);
+                        el.classList.add('selected-item');
+                    }
                 }
                 el.dataset.taps = 0;
-            }, 400);
+            }, 300);
 
+            // START DRAG
             const touch = e.touches[0];
             const startX = touch.pageX;
             const startY = touch.pageY;
 
             dragTimeout = setTimeout(() => {
-                activeTaskId = task.id;
+                // If dragging a non-selected item, clear selection and drag only this
+                if (!selectedTaskIds.has(task.id)) {
+                    selectedTaskIds.clear();
+                    render();
+                }
+
                 dragClone = el.cloneNode(true);
                 dragClone.classList.add('dragging-active');
+                
+                // If dragging a group, add a badge to show how many items are moving
+                if (selectedTaskIds.size > 1) {
+                    const badge = document.createElement('div');
+                    badge.className = 'group-count-badge';
+                    badge.innerText = selectedTaskIds.size;
+                    dragClone.appendChild(badge);
+                }
+
                 document.body.appendChild(dragClone);
                 updateClonePos(startX, startY);
             }, 180); 
@@ -217,18 +232,28 @@
         el.addEventListener('touchend', (e) => {
             clearTimeout(dragTimeout);
             if (!dragClone) return;
+            
             const touch = e.changedTouches[0];
-            const x = touch.pageX;
-            const y = touch.pageY;
+            const targetEl = document.elementFromPoint(touch.pageX, touch.pageY);
+            const quad = targetEl ? targetEl.closest('.quadrant') : null;
+            
+            if (quad) {
+                // If part of a group, move the WHOLE group
+                if (selectedTaskIds.size > 0) {
+                    actions.forEach(a => {
+                        if (selectedTaskIds.has(a.id)) a.quad = quad.id;
+                    });
+                    selectedTaskIds.clear();
+                } else {
+                    // Just move the single dragged item
+                    const t = actions.find(a => a.id === task.id);
+                    if (t) t.quad = quad.id;
+                }
+                save(); render();
+            }
+            
             dragClone.remove();
             dragClone = null;
-            const targetEl = document.elementFromPoint(x, y);
-            const quad = targetEl ? targetEl.closest('.quadrant') : null;
-            if (quad && activeTaskId) {
-                const t = actions.find(a => a.id === activeTaskId);
-                if (t) { t.quad = quad.id; save(); render(); }
-            }
-            activeTaskId = null;
         });
 
         function updateClonePos(x, y) {
@@ -243,6 +268,7 @@
         actions.forEach(a => {
             const el = document.createElement('div');
             el.className = 'action-item';
+            if (selectedTaskIds.has(a.id)) el.classList.add('selected-item');
             el.innerHTML = `<span>${a.text}</span><div style="padding:5px; font-weight:bold" onclick="event.stopPropagation(); confirmDelete('${a.id}')">×</div>`;
             initTouchEvents(el, a);
             document.getElementById(`list-${a.quad}`).appendChild(el);
@@ -255,7 +281,7 @@
         if (val) { 
             actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); 
             save(); render(); 
-            toggleHub();
+            document.getElementById('hub-container').classList.remove('open');
             setTimeout(ensureFullScreen, 500);
         }
     }
@@ -264,6 +290,7 @@
         document.getElementById('confirm-modal').style.display = 'flex';
         document.getElementById('modal-confirm').onclick = () => {
             actions = actions.filter(a => a.id !== id);
+            selectedTaskIds.delete(id);
             save(); render(); closeModal();
         };
     }
@@ -273,15 +300,14 @@
         const Speech = window.webkitSpeechRecognition || window.SpeechRecognition;
         if(!Speech) return alert("Browser not supported");
         const rec = new Speech();
-        const btn = document.getElementById('voice-btn');
-        rec.onstart = () => btn.innerText = "🛑";
+        rec.onstart = () => document.getElementById('voice-btn').innerText = "🛑";
         rec.onresult = (e) => { 
             actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' }); 
             save(); render(); 
-            toggleHub();
+            document.getElementById('hub-container').classList.remove('open');
         };
         rec.onend = () => {
-            btn.innerText = "🎤";
+            document.getElementById('voice-btn').innerText = "🎤";
             setTimeout(ensureFullScreen, 500);
         };
         rec.start();
