@@ -1,96 +1,210 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Real Look - Walk & Talk</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Priority Synapse | Voice Feedback</title>
     <style>
-        body { margin: 0; background: #111; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
-        #controls { position: absolute; bottom: 30px; width: 100%; text-align: center; z-index: 10; }
-        button { 
-            padding: 15px 30px; font-size: 18px; cursor: pointer; border-radius: 50px; 
-            border: none; background: #e91e63; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            margin: 0 10px; transition: 0.3s;
+        :root {
+            --q1-grad: linear-gradient(135deg, #ff5f6d, #ffc371);
+            --q2-grad: linear-gradient(135deg, #11998e, #38ef7d);
+            --q3-grad: linear-gradient(135deg, #00c6ff, #0072ff);
+            --q4-grad: linear-gradient(135deg, #da22ff, #9733ee);
         }
-        button:hover { background: #c2185b; transform: scale(1.05); }
-        #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; }
+        body, html { 
+            margin:0; padding:0; height:100%; 
+            font-family: 'Inter', sans-serif; 
+            background: #05050a; color: white; overflow: hidden;
+            user-select: none;
+        }
+        
+        #dashboard {
+            position: fixed; top: 0; left: 0; right: 0; height: 60px;
+            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
+            display: flex; justify-content: space-around; align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 2000;
+        }
+        .stat-val { display: block; font-weight: 900; font-size: 18px; color: #38ef7d; text-align: center;}
+        .stat-lbl { font-size: 9px; text-transform: uppercase; opacity: 0.6; letter-spacing: 1px; }
+
+        #matrix { 
+            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
+            height: calc(100vh - 60px); margin-top: 60px; gap: 12px; padding: 12px; box-sizing: border-box; 
+        }
+
+        .quadrant { 
+            border-radius: 18px; display: flex; flex-direction: column; 
+            padding: 15px; border: 1px solid rgba(255,255,255,0.05); 
+            height: 100%; overflow: hidden;
+        }
+        .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
+        .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
+
+        .header { 
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: 900; font-size: 11px; text-transform: uppercase; 
+            letter-spacing: 1.5px; margin-bottom: 10px; flex-shrink: 0; 
+        }
+        .pane-count { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; font-size: 10px; }
+
+        .action-list { flex-grow: 1; overflow-y: auto; padding-right: 5px; scrollbar-width: none; }
+        .action-list::-webkit-scrollbar { display: none; }
+
+        .action-item { 
+            background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 12px; margin-bottom: 8px; 
+            font-size: 14px; display: flex; justify-content: space-between; align-items: center;
+            border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
+        }
+
+        #toolbar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 10px 25px; border-radius: 50px; display: flex; gap: 10px; z-index: 1000; border: 1px solid #333;}
+        button { border: none; background: white; color: black; padding: 10px 18px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 11px; transition: 0.3s; }
+        
+        .listening { background: #ff3b30 !important; color: white !important; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        .btn-push { background: #ff3b30; color: white; border: 1px solid white; }
+        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999; display:none; }
+        .modal { background: #111; padding: 30px; border-radius: 20px; text-align: center; width: 280px; }
     </style>
 </head>
-<body>
+<body ondblclick="handleDoubleTap(event)">
 
-    <div id="loader">Loading Realistic Avatar...</div>
-    
-    <div id="controls">
-        <button onclick="talk()">Click to Talk</button>
-        <button onclick="toggleMovement()">Start Walking</button>
+<div id="dashboard">
+    <div class="stat-item"><span class="stat-val" id="count-total">0</span><span class="stat-lbl">TOTAL</span></div>
+    <div class="stat-item"><span class="stat-val" id="count-urgent" style="color:#ff5f6d">0</span><span class="stat-lbl">URGENT</span></div>
+    <div class="stat-item"><span class="stat-val" id="alert-status-hud" style="color:#38ef7d">SYNCED</span><span class="stat-lbl">PUSH</span></div>
+</div>
+
+<div id="matrix">
+    <div class="quadrant q1" id="q1">
+        <div class="header">🚀 DO IT <span class="pane-count" id="badge-q1">0</span></div>
+        <div class="action-list" id="list-q1"></div>
     </div>
+    <div class="quadrant q2" id="q2">
+        <div class="header">📅 PLAN IT <span class="pane-count" id="badge-q2">0</span></div>
+        <div class="action-list" id="list-q2"></div>
+    </div>
+    <div class="quadrant q3" id="q3">
+        <div class="header">🤝 GIVE IT <span class="pane-count" id="badge-q3">0</span></div>
+        <div class="action-list" id="list-q3"></div>
+    </div>
+    <div class="quadrant q4" id="q4">
+        <div class="header">🧹 DROP IT <span class="pane-count" id="badge-q4">0</span></div>
+        <div class="action-list" id="list-q4"></div>
+    </div>
+</div>
 
-    <script type="module">
-        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
-        import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/loaders/GLTFLoader.js';
+<div id="toolbar">
+    <button onclick="addManual()">+ NOTE</button>
+    <button id="voice-btn" onclick="toggleVoice()">🎤 VOICE</button>
+    <button class="btn-push" onclick="manualPushAlerts()">🔔 PUSH BAR</button>
+</div>
 
-        let scene, camera, renderer, model, mixer, clock = new THREE.Clock();
-        let moving = false;
+<div id="confirm-modal" class="overlay">
+    <div class="modal">
+        <h3 id="modal-title"></h3>
+        <p id="modal-desc" style="font-size: 13px; opacity: 0.6"></p>
+        <div style="display:flex; gap:10px; margin-top:20px">
+            <button id="modal-confirm" style="background:#ff3b30; color:white; flex:1">YES</button>
+            <button onclick="closeModal()" style="background:#333; color:white; flex:1">NO</button>
+        </div>
+    </div>
+</div>
 
-        // 1. Scene Setup
-        scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x111111);
-        
-        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.set(0, 1.6, 3);
+<script>
+    // Register Service Worker for Mobile Tray support
+    if ('serviceWorker' in navigator) {
+        const sw = `self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(clients.openWindow('/')); });`;
+        const blob = new Blob([sw], {type: 'text/javascript'});
+        navigator.serviceWorker.register(URL.createObjectURL(blob));
+    }
 
-        renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.outputEncoding = THREE.sRGBEncoding;
-        document.body.appendChild(renderer.domElement);
+    let actions = JSON.parse(localStorage.getItem('synapse_vFinal')) || [];
+    let pendingDelId = null;
 
-        // 2. Realistic Lighting
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(5, 10, 5);
-        scene.add(light);
+    function save() {
+        localStorage.setItem('synapse_vFinal', JSON.stringify(actions));
+        updateHUD();
+    }
 
-        // 3. Load High-Quality Girl Model
-        const loader = new GLTFLoader();
-        // This is a realistic avatar URL
-        loader.load('https://models.readyplayer.me/64b51a91e56999b8f158564a.glb', (gltf) => {
-            model = gltf.scene;
-            scene.add(model);
-            document.getElementById('loader').style.display = 'none';
-            
-            mixer = new THREE.AnimationMixer(model);
-            if (gltf.animations.length > 0) {
-                const action = mixer.clipAction(gltf.animations[0]);
-                action.play();
-            }
+    function updateHUD() {
+        const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
+        actions.forEach(a => counts[a.quad]++);
+        Object.keys(counts).forEach(q => { document.getElementById(`badge-${q}`).innerText = counts[q]; });
+        document.getElementById('count-total').innerText = actions.length;
+        document.getElementById('count-urgent').innerText = counts.q1;
+    }
+
+    function render() {
+        document.querySelectorAll('.action-list').forEach(l => l.innerHTML = '');
+        actions.forEach(a => {
+            const el = document.createElement('div');
+            el.className = 'action-item';
+            el.innerHTML = `<span>${a.text}</span><div style="cursor:pointer; opacity:0.5" onclick="confirmDelete('${a.id}')">×</div>`;
+            document.querySelector(`#list-${a.quad}`).appendChild(el);
         });
+        updateHUD();
+    }
 
-        // 4. Animation Loop
-        function animate() {
-            requestAnimationFrame(animate);
-            let delta = clock.getDelta();
-            if (mixer) mixer.update(delta);
-            
-            // Manual "Walk" sway if moving is toggled
-            if (moving && model) {
-                model.rotation.y += 0.01; // Make her turn
-                model.position.z = Math.sin(Date.now() * 0.002) * 0.5; // Move back/forth
-            }
-            
-            renderer.render(scene, camera);
-        }
-        animate();
+    // STRICT MOBILE BAR PUSH
+    async function manualPushAlerts() {
+        if (Notification.permission !== "granted") await Notification.requestPermission();
+        const urgent = actions.filter(a => a.quad === 'q1');
+        if (urgent.length === 0) return;
+        
+        const reg = await navigator.serviceWorker.ready;
+        urgent.forEach((t, i) => {
+            setTimeout(() => {
+                reg.showNotification(`URGENT (${i + 1}/${urgent.length})`, {
+                    body: t.text,
+                    tag: t.id,
+                    vibrate: [200, 100, 200],
+                    badge: 'https://cdn-icons-png.flaticon.com/512/179/179386.png',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/179/179386.png'
+                });
+            }, i * 250);
+        });
+    }
 
-        // --- FUNCTIONS ---
-        window.talk = () => {
-            const speech = new SpeechSynthesisUtterance("Hey! I am finally loaded. I can walk and talk now. What do you think?");
-            speech.pitch = 1.1;
-            window.speechSynthesis.speak(speech);
+    // DOUBLE TAP = INSTANT PUSH
+    function handleDoubleTap(e) {
+        if (e.target.closest('.action-item') || e.target.closest('button')) return;
+        manualPushAlerts(); // Trigger mobile tray immediately
+    }
+
+    function toggleVoice() {
+        const Speech = window.webkitSpeechRecognition || window.SpeechRecognition;
+        if(!Speech) return;
+        const rec = new Speech();
+        const btn = document.getElementById('voice-btn');
+        rec.onstart = () => { btn.classList.add('listening'); btn.innerText = "🛑 LISTENING..."; };
+        rec.onresult = (e) => { 
+            actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' });
+            save(); render();
         };
+        rec.onend = () => { btn.classList.remove('listening'); btn.innerText = "🎤 VOICE"; };
+        rec.start();
+    }
 
-        window.toggleMovement = () => {
-            moving = !moving;
-            const btn = event.target;
-            btn.innerText = moving ? "Stop Walking" : "Start Walking";
+    function confirmDelete(id) {
+        pendingDelId = id;
+        document.getElementById('modal-title').innerText = "Delete?";
+        document.getElementById('modal-desc').innerText = "Remove this task?";
+        document.getElementById('modal-confirm').onclick = () => {
+            actions = actions.filter(a => a.id !== pendingDelId);
+            save(); render(); closeModal();
         };
-    </script>
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
+
+    function addManual() {
+        const val = prompt("New Task:");
+        if (val) { actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); save(); render(); }
+    }
+
+    render();
+</script>
 </body>
 </html>
