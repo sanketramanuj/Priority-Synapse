@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Priority Synapse | Mobile Final</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Priority Synapse | Center Hub</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
     <style>
         :root {
             --q1-grad: linear-gradient(135deg, #ff5f6d, #ffc371);
@@ -22,84 +27,112 @@
             margin:0; padding:0; height:100%; font-family: 'Inter', sans-serif; 
             background: #05050a; color: white; overflow: hidden; user-select: none;
         }
-        
-        #dashboard {
-            position: fixed; top: 0; left: 0; right: 0; height: 60px;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
-            display: flex; justify-content: space-around; align-items: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 2000;
-        }
-        .stat-val { display: block; font-weight: 900; font-size: 18px; color: #38ef7d; text-align: center;}
-        .stat-lbl { font-size: 9px; text-transform: uppercase; opacity: 0.6; letter-spacing: 1px; }
 
+        /* 70/30 Row Split */
         #matrix { 
-            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
-            height: calc(100vh - 60px); margin-top: 60px; gap: 10px; padding: 10px;
-            overflow: hidden; /* Prevents the whole screen from scrolling */
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            grid-template-rows: 70vh 30vh; 
+            height: 100vh; 
+            gap: 10px; 
+            padding: 10px;
+            padding-top: env(safe-area-inset-top);
+            position: relative;
         }
 
         .quadrant { 
             border-radius: 15px; display: flex; flex-direction: column; 
             padding: 12px; border: 1px solid rgba(255,255,255,0.05); 
-            height: 100%; min-height: 0; /* Critical for enabling inner scroll */
-            position: relative;
+            min-height: 0; position: relative;
         }
         .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
         .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
 
         .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; flex-shrink: 0; }
-        
-        .action-list { 
-            flex-grow: 1; 
-            overflow-y: auto; 
-            -webkit-overflow-scrolling: touch;
-            padding-bottom: 10px;
-        }
-        
-        /* Hide scrollbars but keep functionality */
+        .action-list { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 20px; }
         .action-list::-webkit-scrollbar { display: none; }
-        .action-list { -ms-overflow-style: none; scrollbar-width: none; }
 
         .action-item { 
             background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 8px; 
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid rgba(255,255,255,0.1); 
-            touch-action: pan-y; /* Allows vertical scrolling even on touch items */
+            border: 1px solid rgba(255,255,255,0.1); touch-action: pan-y;
         }
-        
+
+        /* CENTER FLOATING HUB */
+        #hub-container {
+            position: fixed;
+            left: 50%;
+            top: 70vh; /* Positioned at the horizontal line of the 70/30 split */
+            transform: translate(-50%, -50%);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #hub-trigger {
+            width: 55px; height: 55px; border-radius: 50%;
+            background: white; color: black; font-size: 24px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 0 20px rgba(255,255,255,0.3);
+            font-weight: bold; transition: 0.3s;
+            border: 4px solid #05050a;
+        }
+
+        #hub-menu {
+            position: absolute;
+            display: flex;
+            gap: 15px;
+            opacity: 0;
+            pointer-events: none;
+            transition: 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            transform: translateY(0);
+        }
+
+        #hub-container.open #hub-menu {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(-70px); /* Pops up above the trigger */
+        }
+
+        #hub-container.open #hub-trigger {
+            transform: rotate(45deg);
+            background: #ff5f6d;
+            color: white;
+        }
+
+        .hub-btn {
+            width: 50px; height: 50px; border-radius: 50%; border: none;
+            background: white; color: black; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
         .dragging-active { 
             position: fixed !important; pointer-events: none !important; 
             opacity: 0.9; z-index: 9999; width: 140px; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); transform: scale(1.05);
         }
 
-        #toolbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 10px 20px; border-radius: 50px; display: flex; gap: 8px; z-index: 1000; border: 1px solid #444;}
-        button { border: none; background: white; color: black; padding: 10px 15px; border-radius: 20px; font-weight: 700; font-size: 10px; }
-        
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999; display:none; }
         .modal { background: #111; padding: 25px; border-radius: 20px; text-align: center; width: 260px; }
     </style>
 </head>
-<body>
-
-<div id="dashboard">
-    <div class="stat-item"><span class="stat-val" id="count-total">0</span><span class="stat-lbl">TOTAL</span></div>
-    <div class="stat-item"><span class="stat-val" id="count-urgent" style="color:#ff5f6d">0</span><span class="stat-lbl">URGENT</span></div>
-    <div class="stat-item"><span class="stat-val" id="alert-status-hud" style="color:#38ef7d">SYNCED</span><span class="stat-lbl">PUSH</span></div>
-</div>
+<body onclick="ensureFullScreen()">
 
 <div id="matrix">
     <div class="quadrant q1" id="q1"><div class="header">🚀 DO <span id="badge-q1">0</span></div><div class="action-list" id="list-q1"></div></div>
     <div class="quadrant q2" id="q2"><div class="header">📅 PLAN <span id="badge-q2">0</span></div><div class="action-list" id="list-q2"></div></div>
     <div class="quadrant q3" id="q3"><div class="header">🤝 DELEGATE <span id="badge-q3">0</span></div><div class="action-list" id="list-q3"></div></div>
     <div class="quadrant q4" id="q4"><div class="header">🧹 DROP <span id="badge-q4">0</span></div><div class="action-list" id="list-q4"></div></div>
-</div>
-
-<div id="toolbar">
-    <button onclick="addManual()">+ NOTE</button>
-    <button id="voice-btn" onclick="toggleVoice()">🎤 VOICE</button>
-    <button onclick="manualPushAlerts()" style="background:#ff3b30; color:white;">🔔 PUSH</button>
+    
+    <div id="hub-container">
+        <div id="hub-menu">
+            <button class="hub-btn" onclick="addManual()">➕</button>
+            <button class="hub-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
+        </div>
+        <div id="hub-trigger" onclick="toggleHub()">+</div>
+    </div>
 </div>
 
 <div id="confirm-modal" class="overlay">
@@ -118,17 +151,25 @@
     let activeTaskId = null;
     let dragTimeout;
 
-    function save() {
-        localStorage.setItem('synapse_vFinal', JSON.stringify(actions));
-        updateHUD();
+    function ensureFullScreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+        }
     }
 
-    function updateHUD() {
+    function toggleHub() {
+        document.getElementById('hub-container').classList.toggle('open');
+    }
+
+    function save() {
+        localStorage.setItem('synapse_vFinal', JSON.stringify(actions));
+        updateBadges();
+    }
+
+    function updateBadges() {
         const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
         actions.forEach(a => counts[a.quad]++);
         ['q1','q2','q3','q4'].forEach(q => document.getElementById(`badge-${q}`).innerText = counts[q]);
-        document.getElementById('count-total').innerText = actions.length;
-        document.getElementById('count-urgent').innerText = counts.q1;
     }
 
     function initTouchEvents(el, task) {
@@ -144,6 +185,7 @@
                     if (edit !== null && edit.trim() !== "") {
                         task.text = edit.trim();
                         save(); render();
+                        setTimeout(ensureFullScreen, 500);
                     }
                 }
                 el.dataset.taps = 0;
@@ -174,18 +216,14 @@
 
         el.addEventListener('touchend', (e) => {
             clearTimeout(dragTimeout);
-            
             if (!dragClone) return;
             const touch = e.changedTouches[0];
             const x = touch.pageX;
             const y = touch.pageY;
-            
             dragClone.remove();
             dragClone = null;
-
             const targetEl = document.elementFromPoint(x, y);
             const quad = targetEl ? targetEl.closest('.quadrant') : null;
-            
             if (quad && activeTaskId) {
                 const t = actions.find(a => a.id === activeTaskId);
                 if (t) { t.quad = quad.id; save(); render(); }
@@ -209,12 +247,17 @@
             initTouchEvents(el, a);
             document.getElementById(`list-${a.quad}`).appendChild(el);
         });
-        updateHUD();
+        updateBadges();
     }
 
     function addManual() {
         const val = prompt("New Task:");
-        if (val) { actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); save(); render(); }
+        if (val) { 
+            actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); 
+            save(); render(); 
+            toggleHub();
+            setTimeout(ensureFullScreen, 500);
+        }
     }
 
     function confirmDelete(id) {
@@ -224,7 +267,6 @@
             save(); render(); closeModal();
         };
     }
-    
     function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
 
     function toggleVoice() {
@@ -232,17 +274,17 @@
         if(!Speech) return alert("Browser not supported");
         const rec = new Speech();
         const btn = document.getElementById('voice-btn');
-        rec.onstart = () => btn.innerText = "🛑...";
+        rec.onstart = () => btn.innerText = "🛑";
         rec.onresult = (e) => { 
             actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' }); 
             save(); render(); 
+            toggleHub();
         };
-        rec.onend = () => btn.innerText = "🎤 VOICE";
+        rec.onend = () => {
+            btn.innerText = "🎤";
+            setTimeout(ensureFullScreen, 500);
+        };
         rec.start();
-    }
-
-    function manualPushAlerts() {
-        alert("Synced to Tray!");
     }
 
     render();
