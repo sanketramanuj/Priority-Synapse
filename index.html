@@ -35,24 +35,36 @@
         #matrix { 
             display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
             height: calc(100vh - 60px); margin-top: 60px; gap: 10px; padding: 10px;
+            overflow: hidden; /* Prevents the whole screen from scrolling */
         }
 
         .quadrant { 
             border-radius: 15px; display: flex; flex-direction: column; 
             padding: 12px; border: 1px solid rgba(255,255,255,0.05); 
-            height: 100%; overflow: hidden; position: relative;
+            height: 100%; min-height: 0; /* Critical for enabling inner scroll */
+            position: relative;
         }
         .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
         .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
 
-        .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; }
-        .action-list { flex-grow: 1; overflow-y: auto; }
+        .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; flex-shrink: 0; }
+        
+        .action-list { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 10px;
+        }
+        
+        /* Hide scrollbars but keep functionality */
+        .action-list::-webkit-scrollbar { display: none; }
+        .action-list { -ms-overflow-style: none; scrollbar-width: none; }
 
         .action-item { 
             background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 8px; 
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
             border: 1px solid rgba(255,255,255,0.1); 
-            touch-action: none;
+            touch-action: pan-y; /* Allows vertical scrolling even on touch items */
         }
         
         .dragging-active { 
@@ -121,7 +133,6 @@
 
     function initTouchEvents(el, task) {
         el.addEventListener('touchstart', (e) => {
-            // --- 1. TRIPLE TAP LOGIC ---
             let taps = parseInt(el.dataset.taps) || 0;
             taps++;
             el.dataset.taps = taps;
@@ -138,8 +149,6 @@
                 el.dataset.taps = 0;
             }, 400);
 
-            // --- 2. DRAG DELAY ---
-            // We wait 150ms. If the finger is still down, we assume it's a drag, not a tap.
             const touch = e.touches[0];
             const startX = touch.pageX;
             const startY = touch.pageY;
@@ -155,7 +164,6 @@
 
         el.addEventListener('touchmove', (e) => {
             if (!dragClone) {
-                // If they move their finger before the 180ms is up, they aren't triple-tapping
                 clearTimeout(dragTimeout);
                 return;
             }
@@ -165,7 +173,7 @@
         }, {passive: false});
 
         el.addEventListener('touchend', (e) => {
-            clearTimeout(dragTimeout); // Stop drag from starting if they lift fast
+            clearTimeout(dragTimeout);
             
             if (!dragClone) return;
             const touch = e.changedTouches[0];
