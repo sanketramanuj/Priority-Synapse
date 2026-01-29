@@ -1,207 +1,96 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>External Brain v6</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Real Look - Walk & Talk</title>
     <style>
-        :root { --bg: #090909; --panel: #161616; --text: #a0a0a0; --accent: #4ade80; --prof: #60a5fa; --soc: #f472b6; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-        
-        /* Tab Navigation */
-        .tabs { display: flex; gap: 5px; margin-bottom: 15px; background: #000; padding: 5px; border-radius: 12px; }
-        .tab { flex: 1; padding: 12px; text-align: center; font-size: 0.7rem; font-weight: bold; border-radius: 8px; cursor: pointer; text-transform: uppercase; border: 1px solid #222; }
-        .tab.active[data-type="pro"] { background: var(--prof); color: #000; border-color: var(--prof); }
-        .tab.active[data-type="pers"] { background: var(--accent); color: #000; border-color: var(--accent); }
-        .tab.active[data-type="soc"] { background: var(--soc); color: #000; border-color: var(--soc); }
-
-        h2 { font-size: 0.65rem; letter-spacing: 2px; color: var(--text); margin: 0 0 10px 0; text-transform: uppercase; }
-        
-        textarea { 
-            flex-grow: 1; width: 100%; background: var(--panel); border: 1px solid #222;
-            color: #eee; padding: 15px; font-size: 16px; border-radius: 12px;
-            outline: none; resize: none; line-height: 1.5; box-sizing: border-box; font-family: inherit;
+        body { margin: 0; background: #111; color: white; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #controls { position: absolute; bottom: 30px; width: 100%; text-align: center; z-index: 10; }
+        button { 
+            padding: 15px 30px; font-size: 18px; cursor: pointer; border-radius: 50px; 
+            border: none; background: #e91e63; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            margin: 0 10px; transition: 0.3s;
         }
-
-        .quick-bar { display: flex; gap: 8px; margin: 10px 0; overflow-x: auto; padding-bottom: 5px; }
-        .quick-bar button { flex: 0 0 auto; padding: 12px 15px; background: #222; color: #fff; border: 1px solid #333; font-size: 0.75rem; border-radius: 10px; }
-
-        /* Full Dashboard */
-        .dashboard { margin-bottom: 15px; padding: 15px; background: var(--panel); border-radius: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.7rem; }
-        .stat { border-left: 2px solid #333; padding-left: 10px; }
-        .label { display: block; color: #555; margin-bottom: 4px; text-transform: uppercase; }
-        .active-val { color: var(--accent); font-weight: bold; }
-        .highlight { color: #fff; }
-
-        #auth-btn { width: 100%; padding: 15px; background: var(--accent); color: #000; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; }
-        #auth-btn.active { background: #222; color: var(--accent); border: 1px solid #333; }
+        button:hover { background: #c2185b; transform: scale(1.05); }
+        #loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; }
     </style>
 </head>
 <body>
 
-    <div class="tabs">
-        <div class="tab active" data-type="pers" onclick="switchTab('pers')">Personal</div>
-        <div class="tab" data-type="pro" onclick="switchTab('pro')">Professional</div>
-        <div class="tab" data-type="soc" onclick="switchTab('soc')">Social</div>
+    <div id="loader">Loading Realistic Avatar...</div>
+    
+    <div id="controls">
+        <button onclick="talk()">Click to Talk</button>
+        <button onclick="toggleMovement()">Start Walking</button>
     </div>
 
-    <h2 id="log-title">Personal Log</h2>
-    <textarea id="log" placeholder="Schedule tasks..."></textarea>
+    <script type="module">
+        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
+        import { GLTFLoader } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/loaders/GLTFLoader.js';
 
-    <div class="quick-bar">
-        <button onclick="addQuick('Task')">+ Task</button>
-        <button onclick="addQuick('Follow up')">+ Follow</button>
-        <button onclick="addQuick('Waiting')">⏳ Wait</button>
-        <button onclick="autoArrange()" style="border-color: var(--accent);">⚡ Sort</button>
-    </div>
+        let scene, camera, renderer, model, mixer, clock = new THREE.Clock();
+        let moving = false;
 
-    <div class="dashboard">
-        <div class="stat"><span class="label">System</span><span id="status" class="active-val">OBSERVING</span></div>
-        <div class="stat"><span class="label">Maintenance</span><span id="maint-timer" class="highlight">Water: 60m</span></div>
-        <div class="stat"><span class="label">Next Task</span><span id="next-task" class="active-val">None</span></div>
-        <div class="stat"><span class="label">Last Sync</span><span id="sync-val" class="highlight">--:--</span></div>
-    </div>
+        // 1. Scene Setup
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 1.6, 3);
 
-    <button id="auth-btn">ENABLE EXTERNAL BRAIN</button>
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        document.body.appendChild(renderer.domElement);
 
-    <script>
-        let currentTab = 'pers';
-        let waterTimer = 60;
-        const log = document.getElementById('log');
-        const authBtn = document.getElementById('auth-btn');
+        // 2. Realistic Lighting
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 5);
+        scene.add(light);
 
-        const tabConfig = {
-            pers: { title: "Personal Log", accent: "#4ade80" },
-            pro: { title: "Professional Log", accent: "#60a5fa" },
-            soc: { title: "Social Log", accent: "#f472b6" }
-        };
-
-        // --- NOTIFICATION ENGINE ---
-        function triggerNudge(title, body) {
-            if (Notification.permission === "granted") {
-                if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.controller.postMessage({ type: 'TRIGGER_NUDGE', title, body });
-                } else {
-                    new Notification(title, { body });
-                }
+        // 3. Load High-Quality Girl Model
+        const loader = new GLTFLoader();
+        // This is a realistic avatar URL
+        loader.load('https://models.readyplayer.me/64b51a91e56999b8f158564a.glb', (gltf) => {
+            model = gltf.scene;
+            scene.add(model);
+            document.getElementById('loader').style.display = 'none';
+            
+            mixer = new THREE.AnimationMixer(model);
+            if (gltf.animations.length > 0) {
+                const action = mixer.clipAction(gltf.animations[0]);
+                action.play();
             }
-        }
-
-        authBtn.addEventListener('click', () => {
-            Notification.requestPermission().then(p => {
-                if (p === "granted") {
-                    authBtn.innerText = "SYSTEM ACTIVE ✅";
-                    authBtn.classList.add('active');
-                    triggerNudge("System", "Brain Online");
-                }
-            });
         });
 
-        // --- CORE LOGIC ---
-        function switchTab(type) {
-            localStorage.setItem(`brain_data_${currentTab}`, log.value);
-            currentTab = type;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.tab[data-type="${type}"]`).classList.add('active');
+        // 4. Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            let delta = clock.getDelta();
+            if (mixer) mixer.update(delta);
             
-            log.value = localStorage.getItem(`brain_data_${type}`) || "";
-            document.getElementById('log-title').innerText = tabConfig[type].title;
-            document.getElementById('log-title').style.color = tabConfig[type].accent;
-            processBrain();
-        }
-
-        function parseTime(line) {
-            const match = line.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
-            if (!match) return null;
-            let h = parseInt(match[1]);
-            const m = match[2] ? parseInt(match[2]) : 0;
-            const p = match[3].toLowerCase();
-            if (p === 'pm' && h < 12) h += 12;
-            if (p === 'am' && h === 12) h = 0;
-            return h * 60 + m;
-        }
-
-        function autoArrange() {
-            const lines = log.value.trim().split('\n').filter(l => l.trim() !== "");
-            lines.sort((a, b) => (parseTime(a) || 9999) - (parseTime(b) || 9999));
-            log.value = lines.join('\n');
-            processBrain();
-        }
-
-        function getSmartFutureTime() {
-            let lastMins = 0;
-            log.value.split('\n').forEach(l => {
-                const t = parseTime(l);
-                if (t > lastMins) lastMins = t;
-            });
-            const now = new Date();
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            let suggest = Math.max(nowMins + 30, lastMins + 30);
-            
-            let h = Math.floor(suggest / 60) % 24;
-            let m = suggest % 60;
-            const ampm = h >= 12 ? 'pm' : 'am';
-            h = h % 12 || 12;
-            return `${h}:${m.toString().padStart(2, '0')}${ampm}`;
-        }
-
-        function addQuick(type) {
-            const timeStr = getSmartFutureTime();
-            log.value += (log.value ? "\n" : "") + `${timeStr} ${type}: `;
-            log.focus();
-            autoArrange();
-        }
-
-        function processBrain() {
-            localStorage.setItem(`brain_data_${currentTab}`, log.value);
-            document.getElementById('sync-val').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
-            const now = new Date();
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            let crossPaneNext = null;
-
-            ['pers', 'pro', 'soc'].forEach(pane => {
-                const data = (pane === currentTab) ? log.value : (localStorage.getItem(`brain_data_${pane}`) || "");
-                data.split('\n').forEach(line => {
-                    const t = parseTime(line);
-                    if (t !== null) {
-                        const taskText = line.replace(/.*(am|pm)/i, '').trim();
-                        if (t === nowMins && !line.includes('[x]')) {
-                            triggerNudge(`${pane.toUpperCase()} Task`, taskText);
-                        }
-                        if (t > nowMins && (!crossPaneNext || t < crossPaneNext.time)) {
-                            crossPaneNext = { time: t, text: taskText };
-                        }
-                    }
-                });
-            });
-            document.getElementById('next-task').innerText = crossPaneNext ? crossPaneNext.text : "None";
-        }
-
-        // --- TIMERS ---
-        setInterval(() => {
-            waterTimer--;
-            if (waterTimer <= 0) {
-                triggerNudge("Maintenance", "Drink water and stretch.");
-                waterTimer = 60;
+            // Manual "Walk" sway if moving is toggled
+            if (moving && model) {
+                model.rotation.y += 0.01; // Make her turn
+                model.position.z = Math.sin(Date.now() * 0.002) * 0.5; // Move back/forth
             }
-            document.getElementById('maint-timer').innerText = `Water: ${waterTimer}m`;
-            processBrain();
-        }, 60000);
+            
+            renderer.render(scene, camera);
+        }
+        animate();
 
-        window.onload = () => {
-            log.value = localStorage.getItem('brain_data_pers') || "";
-            if (Notification.permission === "granted") {
-                authBtn.innerText = "SYSTEM ACTIVE ✅";
-                authBtn.classList.add('active');
-            }
-            processBrain();
-            if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
+        // --- FUNCTIONS ---
+        window.talk = () => {
+            const speech = new SpeechSynthesisUtterance("Hey! I am finally loaded. I can walk and talk now. What do you think?");
+            speech.pitch = 1.1;
+            window.speechSynthesis.speak(speech);
         };
 
-        log.addEventListener('input', processBrain);
-        log.addEventListener('keydown', (e) => { if(e.key === 'Enter') setTimeout(autoArrange, 100); });
+        window.toggleMovement = () => {
+            moving = !moving;
+            const btn = event.target;
+            btn.innerText = moving ? "Stop Walking" : "Start Walking";
+        };
     </script>
 </body>
 </html>
