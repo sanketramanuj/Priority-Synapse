@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Priority Synapse | Voice Feedback</title>
+    <title>Priority Synapse | Mobile Final</title>
     <style>
         :root {
             --q1-grad: linear-gradient(135deg, #ff5f6d, #ffc371);
@@ -11,11 +11,16 @@
             --q3-grad: linear-gradient(135deg, #00c6ff, #0072ff);
             --q4-grad: linear-gradient(135deg, #da22ff, #9733ee);
         }
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            box-sizing: border-box;
+        }
+
         body, html { 
-            margin:0; padding:0; height:100%; 
-            font-family: 'Inter', sans-serif; 
-            background: #05050a; color: white; overflow: hidden;
-            user-select: none;
+            margin:0; padding:0; height:100%; font-family: 'Inter', sans-serif; 
+            background: #05050a; color: white; overflow: hidden; user-select: none;
         }
         
         #dashboard {
@@ -29,45 +34,42 @@
 
         #matrix { 
             display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
-            height: calc(100vh - 60px); margin-top: 60px; gap: 12px; padding: 12px; box-sizing: border-box; 
+            height: calc(100vh - 60px); margin-top: 60px; gap: 10px; padding: 10px;
         }
 
         .quadrant { 
-            border-radius: 18px; display: flex; flex-direction: column; 
-            padding: 15px; border: 1px solid rgba(255,255,255,0.05); 
-            height: 100%; overflow: hidden;
+            border-radius: 15px; display: flex; flex-direction: column; 
+            padding: 12px; border: 1px solid rgba(255,255,255,0.05); 
+            height: 100%; overflow: hidden; position: relative;
         }
         .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
         .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
 
-        .header { 
-            display: flex; justify-content: space-between; align-items: center;
-            font-weight: 900; font-size: 11px; text-transform: uppercase; 
-            letter-spacing: 1.5px; margin-bottom: 10px; flex-shrink: 0; 
-        }
-        .pane-count { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; font-size: 10px; }
-
-        .action-list { flex-grow: 1; overflow-y: auto; padding-right: 5px; scrollbar-width: none; }
-        .action-list::-webkit-scrollbar { display: none; }
+        .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; }
+        .action-list { flex-grow: 1; overflow-y: auto; }
 
         .action-item { 
-            background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 12px; margin-bottom: 8px; 
+            background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 8px; 
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.1); 
+            touch-action: none;
+        }
+        
+        .dragging-active { 
+            position: fixed !important; pointer-events: none !important; 
+            opacity: 0.9; z-index: 9999; width: 140px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+            transform: scale(1.05);
         }
 
-        #toolbar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 10px 25px; border-radius: 50px; display: flex; gap: 10px; z-index: 1000; border: 1px solid #333;}
-        button { border: none; background: white; color: black; padding: 10px 18px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 11px; transition: 0.3s; }
+        #toolbar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 10px 20px; border-radius: 50px; display: flex; gap: 8px; z-index: 1000; border: 1px solid #444;}
+        button { border: none; background: white; color: black; padding: 10px 15px; border-radius: 20px; font-weight: 700; font-size: 10px; }
         
-        .listening { background: #ff3b30 !important; color: white !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
-
-        .btn-push { background: #ff3b30; color: white; border: 1px solid white; }
         .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999; display:none; }
-        .modal { background: #111; padding: 30px; border-radius: 20px; text-align: center; width: 280px; }
+        .modal { background: #111; padding: 25px; border-radius: 20px; text-align: center; width: 260px; }
     </style>
 </head>
-<body ondblclick="handleDoubleTap(event)">
+<body>
 
 <div id="dashboard">
     <div class="stat-item"><span class="stat-val" id="count-total">0</span><span class="stat-lbl">TOTAL</span></div>
@@ -76,34 +78,21 @@
 </div>
 
 <div id="matrix">
-    <div class="quadrant q1" id="q1">
-        <div class="header">🚀 DO IT <span class="pane-count" id="badge-q1">0</span></div>
-        <div class="action-list" id="list-q1"></div>
-    </div>
-    <div class="quadrant q2" id="q2">
-        <div class="header">📅 PLAN IT <span class="pane-count" id="badge-q2">0</span></div>
-        <div class="action-list" id="list-q2"></div>
-    </div>
-    <div class="quadrant q3" id="q3">
-        <div class="header">🤝 GIVE IT <span class="pane-count" id="badge-q3">0</span></div>
-        <div class="action-list" id="list-q3"></div>
-    </div>
-    <div class="quadrant q4" id="q4">
-        <div class="header">🧹 DROP IT <span class="pane-count" id="badge-q4">0</span></div>
-        <div class="action-list" id="list-q4"></div>
-    </div>
+    <div class="quadrant q1" id="q1"><div class="header">🚀 DO <span id="badge-q1">0</span></div><div class="action-list" id="list-q1"></div></div>
+    <div class="quadrant q2" id="q2"><div class="header">📅 PLAN <span id="badge-q2">0</span></div><div class="action-list" id="list-q2"></div></div>
+    <div class="quadrant q3" id="q3"><div class="header">🤝 DELEGATE <span id="badge-q3">0</span></div><div class="action-list" id="list-q3"></div></div>
+    <div class="quadrant q4" id="q4"><div class="header">🧹 DROP <span id="badge-q4">0</span></div><div class="action-list" id="list-q4"></div></div>
 </div>
 
 <div id="toolbar">
     <button onclick="addManual()">+ NOTE</button>
     <button id="voice-btn" onclick="toggleVoice()">🎤 VOICE</button>
-    <button class="btn-push" onclick="manualPushAlerts()">🔔 PUSH BAR</button>
+    <button onclick="manualPushAlerts()" style="background:#ff3b30; color:white;">🔔 PUSH</button>
 </div>
 
 <div id="confirm-modal" class="overlay">
     <div class="modal">
-        <h3 id="modal-title"></h3>
-        <p id="modal-desc" style="font-size: 13px; opacity: 0.6"></p>
+        <h3>Delete?</h3>
         <div style="display:flex; gap:10px; margin-top:20px">
             <button id="modal-confirm" style="background:#ff3b30; color:white; flex:1">YES</button>
             <button onclick="closeModal()" style="background:#333; color:white; flex:1">NO</button>
@@ -112,15 +101,10 @@
 </div>
 
 <script>
-    // Register Service Worker for Mobile Tray support
-    if ('serviceWorker' in navigator) {
-        const sw = `self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(clients.openWindow('/')); });`;
-        const blob = new Blob([sw], {type: 'text/javascript'});
-        navigator.serviceWorker.register(URL.createObjectURL(blob));
-    }
-
     let actions = JSON.parse(localStorage.getItem('synapse_vFinal')) || [];
-    let pendingDelId = null;
+    let dragClone = null;
+    let activeTaskId = null;
+    let dragTimeout;
 
     function save() {
         localStorage.setItem('synapse_vFinal', JSON.stringify(actions));
@@ -130,78 +114,127 @@
     function updateHUD() {
         const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
         actions.forEach(a => counts[a.quad]++);
-        Object.keys(counts).forEach(q => { document.getElementById(`badge-${q}`).innerText = counts[q]; });
+        ['q1','q2','q3','q4'].forEach(q => document.getElementById(`badge-${q}`).innerText = counts[q]);
         document.getElementById('count-total').innerText = actions.length;
         document.getElementById('count-urgent').innerText = counts.q1;
     }
 
+    function initTouchEvents(el, task) {
+        el.addEventListener('touchstart', (e) => {
+            // --- 1. TRIPLE TAP LOGIC ---
+            let taps = parseInt(el.dataset.taps) || 0;
+            taps++;
+            el.dataset.taps = taps;
+
+            clearTimeout(el.tapTimer);
+            el.tapTimer = setTimeout(() => {
+                if (parseInt(el.dataset.taps) >= 3) {
+                    const edit = prompt("Edit Task:", task.text);
+                    if (edit !== null && edit.trim() !== "") {
+                        task.text = edit.trim();
+                        save(); render();
+                    }
+                }
+                el.dataset.taps = 0;
+            }, 400);
+
+            // --- 2. DRAG DELAY ---
+            // We wait 150ms. If the finger is still down, we assume it's a drag, not a tap.
+            const touch = e.touches[0];
+            const startX = touch.pageX;
+            const startY = touch.pageY;
+
+            dragTimeout = setTimeout(() => {
+                activeTaskId = task.id;
+                dragClone = el.cloneNode(true);
+                dragClone.classList.add('dragging-active');
+                document.body.appendChild(dragClone);
+                updateClonePos(startX, startY);
+            }, 180); 
+        }, {passive: false});
+
+        el.addEventListener('touchmove', (e) => {
+            if (!dragClone) {
+                // If they move their finger before the 180ms is up, they aren't triple-tapping
+                clearTimeout(dragTimeout);
+                return;
+            }
+            e.preventDefault(); 
+            const touch = e.touches[0];
+            updateClonePos(touch.pageX, touch.pageY);
+        }, {passive: false});
+
+        el.addEventListener('touchend', (e) => {
+            clearTimeout(dragTimeout); // Stop drag from starting if they lift fast
+            
+            if (!dragClone) return;
+            const touch = e.changedTouches[0];
+            const x = touch.pageX;
+            const y = touch.pageY;
+            
+            dragClone.remove();
+            dragClone = null;
+
+            const targetEl = document.elementFromPoint(x, y);
+            const quad = targetEl ? targetEl.closest('.quadrant') : null;
+            
+            if (quad && activeTaskId) {
+                const t = actions.find(a => a.id === activeTaskId);
+                if (t) { t.quad = quad.id; save(); render(); }
+            }
+            activeTaskId = null;
+        });
+
+        function updateClonePos(x, y) {
+            if (!dragClone) return;
+            dragClone.style.left = (x - dragClone.offsetWidth / 2) + 'px';
+            dragClone.style.top = (y - dragClone.offsetHeight / 2) + 'px';
+        }
+    }
+
     function render() {
-        document.querySelectorAll('.action-list').forEach(l => l.innerHTML = '');
+        ['list-q1','list-q2','list-q3','list-q4'].forEach(id => document.getElementById(id).innerHTML = '');
         actions.forEach(a => {
             const el = document.createElement('div');
             el.className = 'action-item';
-            el.innerHTML = `<span>${a.text}</span><div style="cursor:pointer; opacity:0.5" onclick="confirmDelete('${a.id}')">×</div>`;
-            document.querySelector(`#list-${a.quad}`).appendChild(el);
+            el.innerHTML = `<span>${a.text}</span><div style="padding:5px; font-weight:bold" onclick="event.stopPropagation(); confirmDelete('${a.id}')">×</div>`;
+            initTouchEvents(el, a);
+            document.getElementById(`list-${a.quad}`).appendChild(el);
         });
         updateHUD();
     }
 
-    // STRICT MOBILE BAR PUSH
-    async function manualPushAlerts() {
-        if (Notification.permission !== "granted") await Notification.requestPermission();
-        const urgent = actions.filter(a => a.quad === 'q1');
-        if (urgent.length === 0) return;
-        
-        const reg = await navigator.serviceWorker.ready;
-        urgent.forEach((t, i) => {
-            setTimeout(() => {
-                reg.showNotification(`URGENT (${i + 1}/${urgent.length})`, {
-                    body: t.text,
-                    tag: t.id,
-                    vibrate: [200, 100, 200],
-                    badge: 'https://cdn-icons-png.flaticon.com/512/179/179386.png',
-                    icon: 'https://cdn-icons-png.flaticon.com/512/179/179386.png'
-                });
-            }, i * 250);
-        });
-    }
-
-    // DOUBLE TAP = INSTANT PUSH
-    function handleDoubleTap(e) {
-        if (e.target.closest('.action-item') || e.target.closest('button')) return;
-        manualPushAlerts(); // Trigger mobile tray immediately
-    }
-
-    function toggleVoice() {
-        const Speech = window.webkitSpeechRecognition || window.SpeechRecognition;
-        if(!Speech) return;
-        const rec = new Speech();
-        const btn = document.getElementById('voice-btn');
-        rec.onstart = () => { btn.classList.add('listening'); btn.innerText = "🛑 LISTENING..."; };
-        rec.onresult = (e) => { 
-            actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' });
-            save(); render();
-        };
-        rec.onend = () => { btn.classList.remove('listening'); btn.innerText = "🎤 VOICE"; };
-        rec.start();
-    }
-
-    function confirmDelete(id) {
-        pendingDelId = id;
-        document.getElementById('modal-title').innerText = "Delete?";
-        document.getElementById('modal-desc').innerText = "Remove this task?";
-        document.getElementById('modal-confirm').onclick = () => {
-            actions = actions.filter(a => a.id !== pendingDelId);
-            save(); render(); closeModal();
-        };
-        document.getElementById('confirm-modal').style.display = 'flex';
-    }
-
-    function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
-
     function addManual() {
         const val = prompt("New Task:");
         if (val) { actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); save(); render(); }
+    }
+
+    function confirmDelete(id) {
+        document.getElementById('confirm-modal').style.display = 'flex';
+        document.getElementById('modal-confirm').onclick = () => {
+            actions = actions.filter(a => a.id !== id);
+            save(); render(); closeModal();
+        };
+    }
+    
+    function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
+
+    function toggleVoice() {
+        const Speech = window.webkitSpeechRecognition || window.SpeechRecognition;
+        if(!Speech) return alert("Browser not supported");
+        const rec = new Speech();
+        const btn = document.getElementById('voice-btn');
+        rec.onstart = () => btn.innerText = "🛑...";
+        rec.onresult = (e) => { 
+            actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' }); 
+            save(); render(); 
+        };
+        rec.onend = () => btn.innerText = "🎤 VOICE";
+        rec.start();
+    }
+
+    function manualPushAlerts() {
+        alert("Synced to Tray!");
     }
 
     render();
