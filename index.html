@@ -25,13 +25,14 @@
         body, html { 
             margin:0; padding:0; height:100%; font-family: 'Inter', sans-serif; 
             background: #05050a; color: white; overflow: hidden; user-select: none;
+            position: fixed; width: 100%;
         }
 
         #matrix { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
             grid-template-rows: 70% 30%; 
-            height: 100%; width: 100%;
+            height: 100vh; width: 100vw;
             gap: 10px; padding: 10px;
             padding-top: env(safe-area-inset-top);
             position: relative;
@@ -39,31 +40,36 @@
 
         .quadrant { 
             border-radius: 15px; display: flex; flex-direction: column; 
-            padding: 12px; border: 1px solid rgba(255,255,255,0.05); 
+            padding: 12px; border: 1px solid rgba(255,255,255,0.1); 
             min-height: 0; position: relative; overflow: hidden;
         }
+
         .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
         .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
 
         .header { font-weight: 900; font-size: 10px; text-transform: uppercase; margin-bottom: 8px; flex-shrink: 0; }
-        .action-list { flex-grow: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 30px; }
+        
+        .action-list { 
+            flex-grow: 1; 
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            padding-bottom: 80px;
+            touch-action: pan-y;
+        }
         .action-list::-webkit-scrollbar { display: none; }
 
         .action-item { 
             background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 12px; margin-bottom: 8px; 
             font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid rgba(255,255,255,0.1); touch-action: none;
-            transition: border 0.2s, box-shadow 0.2s;
+            border: 1px solid rgba(255,255,255,0.1); touch-action: pan-y;
         }
 
-        /* Multi-Select Style */
         .selected-item {
             border: 2px solid #fff !important;
-            background: rgba(255, 255, 255, 0.2) !important;
+            background: rgba(255, 255, 255, 0.3) !important;
             box-shadow: 0 0 15px rgba(255,255,255,0.4);
         }
 
-        /* HUB STYLING */
         #hub-container {
             position: absolute; left: 50%; top: 70%; 
             transform: translate(-50%, -50%); z-index: 3000;
@@ -86,9 +92,9 @@
         #hub-container.open #hub-menu { opacity: 1; pointer-events: auto; transform: translateY(-65px); }
         #hub-container.open #hub-trigger { transform: rotate(45deg); background: #ff5f6d; color: white; }
 
-        .hub-btn { width: 45px; height: 45px; border-radius: 50%; border: none; background: white; font-size: 18px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); }
+        .hub-btn { width: 45px; height: 45px; border-radius: 50%; border: none; background: white; font-size: 18px; box-shadow: 0 5px 15px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+        .deselect-btn { background: #ff3b30; color: white; display: none; }
 
-        /* Drag Visuals */
         .dragging-active { 
             position: fixed !important; pointer-events: none !important; 
             opacity: 0.9; z-index: 9999; width: 140px; 
@@ -115,6 +121,7 @@
     
     <div id="hub-container">
         <div id="hub-menu">
+            <button class="hub-btn deselect-btn" id="deselect-btn" onclick="deselectAll()">✕</button>
             <button class="hub-btn" onclick="addManual()">➕</button>
             <button class="hub-btn" id="voice-btn" onclick="toggleVoice()">🎤</button>
         </div>
@@ -126,8 +133,8 @@
     <div class="modal">
         <h3>Delete?</h3>
         <div style="display:flex; gap:10px; margin-top:20px">
-            <button id="modal-confirm" style="background:#ff3b30; color:white; flex:1">YES</button>
-            <button onclick="closeModal()" style="background:#333; color:white; flex:1">NO</button>
+            <button id="modal-confirm" style="background:#ff3b30; color:white; flex:1; border:none; padding:10px; border-radius:10px">YES</button>
+            <button onclick="closeModal()" style="background:#333; color:white; flex:1; border:none; padding:10px; border-radius:10px">NO</button>
         </div>
     </div>
 </div>
@@ -136,7 +143,7 @@
     let actions = JSON.parse(localStorage.getItem('synapse_vFinal')) || [];
     let dragClone = null;
     let dragTimeout;
-    let selectedTaskIds = new Set(); // Stores multiple IDs
+    let selectedTaskIds = new Set();
 
     function ensureFullScreen() {
         if (!document.fullscreenElement) {
@@ -146,7 +153,17 @@
 
     function toggleHub(e) {
         e.stopPropagation();
-        document.getElementById('hub-container').classList.toggle('open');
+        const hub = document.getElementById('hub-container');
+        const dBtn = document.getElementById('deselect-btn');
+        // Only show deselect button if there are items selected
+        dBtn.style.display = selectedTaskIds.size > 0 ? 'flex' : 'none';
+        hub.classList.toggle('open');
+    }
+
+    function deselectAll() {
+        selectedTaskIds.clear();
+        render();
+        document.getElementById('hub-container').classList.remove('open');
     }
 
     function save() {
@@ -169,35 +186,29 @@
 
             clearTimeout(el.tapTimer);
             el.tapTimer = setTimeout(() => {
-                // TRIPLE TAP -> EDIT
                 if (parseInt(el.dataset.taps) >= 3) {
                     const edit = prompt("Edit Task:", task.text);
                     if (edit !== null && edit.trim() !== "") {
                         task.text = edit.trim();
                         save(); render();
-                        setTimeout(ensureFullScreen, 500);
                     }
                 } 
-                // DOUBLE TAP -> MULTI-SELECT TOGGLE
                 else if (parseInt(el.dataset.taps) === 2) {
                     if (selectedTaskIds.has(task.id)) {
                         selectedTaskIds.delete(task.id);
-                        el.classList.remove('selected-item');
                     } else {
                         selectedTaskIds.add(task.id);
-                        el.classList.add('selected-item');
                     }
+                    render();
                 }
                 el.dataset.taps = 0;
             }, 300);
 
-            // START DRAG
             const touch = e.touches[0];
             const startX = touch.pageX;
             const startY = touch.pageY;
 
             dragTimeout = setTimeout(() => {
-                // If dragging a non-selected item, clear selection and drag only this
                 if (!selectedTaskIds.has(task.id)) {
                     selectedTaskIds.clear();
                     render();
@@ -206,7 +217,6 @@
                 dragClone = el.cloneNode(true);
                 dragClone.classList.add('dragging-active');
                 
-                // If dragging a group, add a badge to show how many items are moving
                 if (selectedTaskIds.size > 1) {
                     const badge = document.createElement('div');
                     badge.className = 'group-count-badge';
@@ -216,17 +226,17 @@
 
                 document.body.appendChild(dragClone);
                 updateClonePos(startX, startY);
-            }, 180); 
-        }, {passive: false});
+            }, 450); // High delay to ensure scrolling happens easily
+        }, {passive: true});
 
         el.addEventListener('touchmove', (e) => {
-            if (!dragClone) {
-                clearTimeout(dragTimeout);
-                return;
+            if (dragClone) {
+                e.preventDefault(); 
+                const touch = e.touches[0];
+                updateClonePos(touch.pageX, touch.pageY);
+            } else {
+                clearTimeout(dragTimeout); // Cancel drag if user is scrolling
             }
-            e.preventDefault(); 
-            const touch = e.touches[0];
-            updateClonePos(touch.pageX, touch.pageY);
         }, {passive: false});
 
         el.addEventListener('touchend', (e) => {
@@ -238,14 +248,12 @@
             const quad = targetEl ? targetEl.closest('.quadrant') : null;
             
             if (quad) {
-                // If part of a group, move the WHOLE group
                 if (selectedTaskIds.size > 0) {
                     actions.forEach(a => {
                         if (selectedTaskIds.has(a.id)) a.quad = quad.id;
                     });
                     selectedTaskIds.clear();
                 } else {
-                    // Just move the single dragged item
                     const t = actions.find(a => a.id === task.id);
                     if (t) t.quad = quad.id;
                 }
@@ -269,7 +277,7 @@
             const el = document.createElement('div');
             el.className = 'action-item';
             if (selectedTaskIds.has(a.id)) el.classList.add('selected-item');
-            el.innerHTML = `<span>${a.text}</span><div style="padding:5px; font-weight:bold" onclick="event.stopPropagation(); confirmDelete('${a.id}')">×</div>`;
+            el.innerHTML = `<span>${a.text}</span><div style="padding:10px; font-weight:bold" onclick="event.stopPropagation(); confirmDelete('${a.id}')">×</div>`;
             initTouchEvents(el, a);
             document.getElementById(`list-${a.quad}`).appendChild(el);
         });
@@ -282,7 +290,6 @@
             actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); 
             save(); render(); 
             document.getElementById('hub-container').classList.remove('open');
-            setTimeout(ensureFullScreen, 500);
         }
     }
 
@@ -306,10 +313,7 @@
             save(); render(); 
             document.getElementById('hub-container').classList.remove('open');
         };
-        rec.onend = () => {
-            document.getElementById('voice-btn').innerText = "🎤";
-            setTimeout(ensureFullScreen, 500);
-        };
+        rec.onend = () => document.getElementById('voice-btn').innerText = "🎤";
         rec.start();
     }
 
