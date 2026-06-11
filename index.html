@@ -186,7 +186,20 @@ async function addTask(text){
 let t=text || prompt("Task");
 if(!t) return;
 
-let task={id:Date.now(),text:t,quad:"q1"};
+let quad = "q1"; // default
+
+let txt = t.toLowerCase();
+
+/* ✅ SIMPLE AUTO RULES */
+if(txt.includes("plan")) quad="q2";
+else if(txt.includes("offer")) quad="q3";
+else if(txt.includes("rc") || txt.includes("Quote")) quad="q4";
+else if(txt.includes("visit")) quad="q5";
+else if(txt.includes("my")) quad="q6";
+
+let task={id:Date.now(),text:t,quad:quad};
+
+
 actions.push(task);
 render(); save();
 
