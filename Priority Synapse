@@ -1,210 +1,448 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Priority Synapse | Voice Feedback</title>
-    <style>
-        :root {
-            --q1-grad: linear-gradient(135deg, #ff5f6d, #ffc371);
-            --q2-grad: linear-gradient(135deg, #11998e, #38ef7d);
-            --q3-grad: linear-gradient(135deg, #00c6ff, #0072ff);
-            --q4-grad: linear-gradient(135deg, #da22ff, #9733ee);
-        }
-        body, html { 
-            margin:0; padding:0; height:100%; 
-            font-family: 'Inter', sans-serif; 
-            background: #05050a; color: white; overflow: hidden;
-            user-select: none;
-        }
-        
-        #dashboard {
-            position: fixed; top: 0; left: 0; right: 0; height: 60px;
-            background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
-            display: flex; justify-content: space-around; align-items: center;
-            border-bottom: 1px solid rgba(255,255,255,0.1); z-index: 2000;
-        }
-        .stat-val { display: block; font-weight: 900; font-size: 18px; color: #38ef7d; text-align: center;}
-        .stat-lbl { font-size: 9px; text-transform: uppercase; opacity: 0.6; letter-spacing: 1px; }
+<meta charset="UTF-8">
+<title>Synapse AI Pro Max</title>
 
-        #matrix { 
-            display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; 
-            height: calc(100vh - 60px); margin-top: 60px; gap: 12px; padding: 12px; box-sizing: border-box; 
-        }
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 
-        .quadrant { 
-            border-radius: 18px; display: flex; flex-direction: column; 
-            padding: 15px; border: 1px solid rgba(255,255,255,0.05); 
-            height: 100%; overflow: hidden;
-        }
-        .q1 { background: var(--q1-grad); } .q2 { background: var(--q2-grad); }
-        .q3 { background: var(--q3-grad); } .q4 { background: var(--q4-grad); }
+<style>
+body,html{
+    user-select: none;
+margin:0;height:100%;
+background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+font-family:sans-serif;color:white;overflow:hidden;
+}
 
-        .header { 
-            display: flex; justify-content: space-between; align-items: center;
-            font-weight: 900; font-size: 11px; text-transform: uppercase; 
-            letter-spacing: 1.5px; margin-bottom: 10px; flex-shrink: 0; 
-        }
-        .pane-count { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; font-size: 10px; }
+#matrix{display:flex;height:100vh;}
 
-        .action-list { flex-grow: 1; overflow-y: auto; padding-right: 5px; scrollbar-width: none; }
-        .action-list::-webkit-scrollbar { display: none; }
+.quadrant{
+flex:1;
+display:flex;flex-direction:column;
+background:rgba(255,255,255,0.05);
+border-right:1px solid rgba(255,255,255,0.1);
+}
 
-        .action-item { 
-            background: rgba(0, 0, 0, 0.25); border-radius: 12px; padding: 12px; margin-bottom: 8px; 
-            font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0;
-        }
+.header{padding:6px;font-weight:bold;display:flex;justify-content:space-between;}
 
-        #toolbar { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.9); padding: 10px 25px; border-radius: 50px; display: flex; gap: 10px; z-index: 1000; border: 1px solid #333;}
-        button { border: none; background: white; color: black; padding: 10px 18px; border-radius: 20px; font-weight: 700; cursor: pointer; font-size: 11px; transition: 0.3s; }
-        
-        .listening { background: #ff3b30 !important; color: white !important; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+.action-item{
+margin:6px;padding:8px;
+border-radius:10px;
+background:#1e1e1e;
+position:relative;cursor:pointer;
+}
 
-        .btn-push { background: #ff3b30; color: white; border: 1px solid white; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999; display:none; }
-        .modal { background: #111; padding: 30px; border-radius: 20px; text-align: center; width: 280px; }
-    </style>
+.selected-item{
+background:#0072ff;
+border:2px solid white;
+}
+
+.delete-btn{
+position:absolute;right:5px;top:5px;
+color:red;cursor:pointer;
+}
+
+/* HUB */
+#hub-container{
+position:fixed;bottom:30px;left:50%;
+transform:translateX(-50%);
+}
+
+#hub-trigger{
+width:60px;height:60px;
+border-radius:50%;
+display:flex;align-items:center;justify-content:center;
+font-size:28px;cursor:pointer;
+}
+
+#hub-menu{
+display:flex;gap:8px;
+opacity:0;transform:scale(0.6);
+pointer-events:none;
+transition:0.25s;
+}
+
+#hub-container.open #hub-menu{
+opacity:1;transform:scale(1);
+pointer-events:auto;
+}
+
+/* STATUS */
+.synced{background:green;}
+.syncing{background:gold;}
+.offline{background:red;}
+</style>
 </head>
-<body ondblclick="handleDoubleTap(event)">
 
-<div id="dashboard">
-    <div class="stat-item"><span class="stat-val" id="count-total">0</span><span class="stat-lbl">TOTAL</span></div>
-    <div class="stat-item"><span class="stat-val" id="count-urgent" style="color:#ff5f6d">0</span><span class="stat-lbl">URGENT</span></div>
-    <div class="stat-item"><span class="stat-val" id="alert-status-hud" style="color:#38ef7d">SYNCED</span><span class="stat-lbl">PUSH</span></div>
+<body>
+
+<div id="matrix"></div>
+
+<div id="hub-container">
+<div id="hub-menu">
+<button onclick="addTask()">➕</button>
+<button onclick="startVoice()">🎤</button>
+<button onclick="deselectAll()">✕</button>
 </div>
-
-<div id="matrix">
-    <div class="quadrant q1" id="q1">
-        <div class="header">🚀 DO IT <span class="pane-count" id="badge-q1">0</span></div>
-        <div class="action-list" id="list-q1"></div>
-    </div>
-    <div class="quadrant q2" id="q2">
-        <div class="header">📅 PLAN IT <span class="pane-count" id="badge-q2">0</span></div>
-        <div class="action-list" id="list-q2"></div>
-    </div>
-    <div class="quadrant q3" id="q3">
-        <div class="header">🤝 GIVE IT <span class="pane-count" id="badge-q3">0</span></div>
-        <div class="action-list" id="list-q3"></div>
-    </div>
-    <div class="quadrant q4" id="q4">
-        <div class="header">🧹 DROP IT <span class="pane-count" id="badge-q4">0</span></div>
-        <div class="action-list" id="list-q4"></div>
-    </div>
-</div>
-
-<div id="toolbar">
-    <button onclick="addManual()">+ NOTE</button>
-    <button id="voice-btn" onclick="toggleVoice()">🎤 VOICE</button>
-    <button class="btn-push" onclick="manualPushAlerts()">🔔 PUSH BAR</button>
-</div>
-
-<div id="confirm-modal" class="overlay">
-    <div class="modal">
-        <h3 id="modal-title"></h3>
-        <p id="modal-desc" style="font-size: 13px; opacity: 0.6"></p>
-        <div style="display:flex; gap:10px; margin-top:20px">
-            <button id="modal-confirm" style="background:#ff3b30; color:white; flex:1">YES</button>
-            <button onclick="closeModal()" style="background:#333; color:white; flex:1">NO</button>
-        </div>
-    </div>
+<div id="hub-trigger" onclick="toggleHub()">+</div>
 </div>
 
 <script>
-    // Register Service Worker for Mobile Tray support
-    if ('serviceWorker' in navigator) {
-        const sw = `self.addEventListener('notificationclick', e => { e.notification.close(); e.waitUntil(clients.openWindow('/')); });`;
-        const blob = new Blob([sw], {type: 'text/javascript'});
-        navigator.serviceWorker.register(URL.createObjectURL(blob));
-    }
 
-    let actions = JSON.parse(localStorage.getItem('synapse_vFinal')) || [];
-    let pendingDelId = null;
+/* ✅ SUPABASE */
+const supabaseClient = supabase.createClient(
+"https://hgskndwjgqdwbrabzlvp.supabase.co",
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhnc2tuZHdqZ3Fkd2JyYWJ6bHZwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjg0ODEsImV4cCI6MjA5Njc0NDQ4MX0.sca542OMhMMrXkPHPUJYdzSMhNczMT1aTmVAfCg7qY4"
+);
 
-    function save() {
-        localStorage.setItem('synapse_vFinal', JSON.stringify(actions));
-        updateHUD();
-    }
+const quads=["q1","q2","q3","q4","q5","q6"];
+const names=["DO","PLAN","OFFER","RC","VISIT","PERSONAL"];
 
-    function updateHUD() {
-        const counts = { q1: 0, q2: 0, q3: 0, q4: 0 };
-        actions.forEach(a => counts[a.quad]++);
-        Object.keys(counts).forEach(q => { document.getElementById(`badge-${q}`).innerText = counts[q]; });
-        document.getElementById('count-total').innerText = actions.length;
-        document.getElementById('count-urgent').innerText = counts.q1;
-    }
+let actions = JSON.parse(localStorage.getItem("synapse6"))||[];
+let queue = JSON.parse(localStorage.getItem("syncQueue"))||[];
 
-    function render() {
-        document.querySelectorAll('.action-list').forEach(l => l.innerHTML = '');
-        actions.forEach(a => {
-            const el = document.createElement('div');
-            el.className = 'action-item';
-            el.innerHTML = `<span>${a.text}</span><div style="cursor:pointer; opacity:0.5" onclick="confirmDelete('${a.id}')">×</div>`;
-            document.querySelector(`#list-${a.quad}`).appendChild(el);
-        });
-        updateHUD();
-    }
+let selected=new Set();
 
-    // STRICT MOBILE BAR PUSH
-    async function manualPushAlerts() {
-        if (Notification.permission !== "granted") await Notification.requestPermission();
-        const urgent = actions.filter(a => a.quad === 'q1');
-        if (urgent.length === 0) return;
-        
-        const reg = await navigator.serviceWorker.ready;
-        urgent.forEach((t, i) => {
-            setTimeout(() => {
-                reg.showNotification(`URGENT (${i + 1}/${urgent.length})`, {
-                    body: t.text,
-                    tag: t.id,
-                    vibrate: [200, 100, 200],
-                    badge: 'https://cdn-icons-png.flaticon.com/512/179/179386.png',
-                    icon: 'https://cdn-icons-png.flaticon.com/512/179/179386.png'
-                });
-            }, i * 250);
-        });
-    }
+/* BUILD */
+const matrix=document.getElementById("matrix");
 
-    // DOUBLE TAP = INSTANT PUSH
-    function handleDoubleTap(e) {
-        if (e.target.closest('.action-item') || e.target.closest('button')) return;
-        manualPushAlerts(); // Trigger mobile tray immediately
-    }
+quads.forEach((q,i)=>{
+let col=document.createElement("div");
+col.className="quadrant";
+col.id=q;
 
-    function toggleVoice() {
-        const Speech = window.webkitSpeechRecognition || window.SpeechRecognition;
-        if(!Speech) return;
-        const rec = new Speech();
-        const btn = document.getElementById('voice-btn');
-        rec.onstart = () => { btn.classList.add('listening'); btn.innerText = "🛑 LISTENING..."; };
-        rec.onresult = (e) => { 
-            actions.push({ id: 'id'+Date.now(), text: e.results[0][0].transcript, quad: 'q1' });
-            save(); render();
-        };
-        rec.onend = () => { btn.classList.remove('listening'); btn.innerText = "🎤 VOICE"; };
-        rec.start();
-    }
+col.innerHTML=`
+<div class="header">
+<span>${names[i]}</span>
+<span id="count-${q}">(0)</span>
+</div>
+<div id="list-${q}"></div>`;
 
-    function confirmDelete(id) {
-        pendingDelId = id;
-        document.getElementById('modal-title').innerText = "Delete?";
-        document.getElementById('modal-desc').innerText = "Remove this task?";
-        document.getElementById('modal-confirm').onclick = () => {
-            actions = actions.filter(a => a.id !== pendingDelId);
-            save(); render(); closeModal();
-        };
-        document.getElementById('confirm-modal').style.display = 'flex';
-    }
+matrix.appendChild(col);
+});
 
-    function closeModal() { document.getElementById('confirm-modal').style.display = 'none'; }
+/* SAVE */
+function save(){
+localStorage.setItem("synapse6",JSON.stringify(actions));
+localStorage.setItem("syncQueue",JSON.stringify(queue));
+}
 
-    function addManual() {
-        const val = prompt("New Task:");
-        if (val) { actions.push({ id: 'id'+Date.now(), text: val, quad: 'q1' }); save(); render(); }
-    }
+/* STATUS */
+function updateStatus(){
+let hub=document.getElementById("hub-trigger");
+hub.className="";
 
-    render();
+if(!navigator.onLine) hub.classList.add("offline");
+else if(queue.length>0) hub.classList.add("syncing");
+else hub.classList.add("synced");
+}
+
+/* ✅ ADD */
+async function addTask(text){
+
+let t=text || prompt("Task");
+if(!t) return;
+
+let task={id:Date.now(),text:t,quad:"q1"};
+actions.push(task);
+render(); save();
+
+if(navigator.onLine){
+let {error}=await supabaseClient.from("tasks").insert([task]);
+if(error) queue.push({type:"add",data:task});
+}else{
+queue.push({type:"add",data:task});
+}
+
+save(); updateStatus();
+}
+
+/* ✅ DELETE WITH CONFIRM */
+async function del(id){
+
+let confirmDelete = confirm("Are you sure you want to delete this task?");
+
+if(!confirmDelete) return;
+
+/* proceed */
+actions = actions.filter(a=>a.id!==id);
+
+render(); 
+save();
+
+/* sync */
+if(navigator.onLine){
+let {error} = await supabaseClient
+.from("tasks")
+.delete()
+.eq("id", id);
+
+if(error){
+queue.push({type:"delete",id});
+}
+
+}else{
+queue.push({type:"delete",id});
+}
+
+save();
+updateStatus();
+}
+
+/* ✅ DELETE MULTIPLE */
+async function deleteSelected(){
+
+if(selected.size===0) return;
+
+let confirmDelete = confirm("Delete selected tasks?");
+if(!confirmDelete) return;
+
+for(let id of selected){
+await del(id);
+}
+
+selected.clear();
+render();
+}
+
+/* ✅ SYNC */
+async function sync(){
+if(!navigator.onLine) return;
+
+for(let i=0;i<queue.length;i++){
+let job=queue[i],err;
+
+if(job.type==="add")
+({error:err}=await supabaseClient.from("tasks").insert([job.data]));
+
+if(job.type==="update")
+({error:err}=await supabaseClient.from("tasks").update(job.data).eq("id",job.data.id));
+
+if(job.type==="delete")
+({error:err}=await supabaseClient.from("tasks").delete().eq("id",job.id));
+
+if(!err){queue.splice(i,1);i--;} else break;
+}
+
+save(); updateStatus();
+}
+
+/* CLICK */
+let clickState={}, clickTimer={};
+
+function click(a){
+
+clickState[a.id] = (clickState[a.id] || 0) + 1;
+
+clearTimeout(clickTimer[a.id]);
+
+clickTimer[a.id] = setTimeout(()=>{
+clickState[a.id] = 0;
+}, 400);
+
+if(clickState[a.id] === 1){
+selected.add(a.id);
+}
+
+if(clickState[a.id] === 2){
+selected.delete(a.id);
+}
+
+if(clickState[a.id] === 3){
+
+let t = prompt("Edit task", a.text);
+
+if(t){
+a.text = t;
+
+if(navigator.onLine){
+supabaseClient.from("tasks")
+.update({text:a.text})
+.eq("id",a.id);
+}else{
+queue.push({type:"update",data:a});
+}
+save();
+}
+
+clickState[a.id] = 0;
+}
+
+render();
+updateStatus();
+}
+
+/* DRAG */
+function drag(el,task){
+
+el.onpointerdown=(e)=>{
+
+let sx=e.clientX, sy=e.clientY;
+let dragging=false;
+
+function move(ev){
+if(!dragging &&
+(Math.abs(ev.clientX-sx)>10 ||
+ Math.abs(ev.clientY-sy)>10)){
+
+dragging=true;
+if(selected.size===0) selected.add(task.id);
+startDrag(ev);
+}
+}
+
+function up(){
+document.removeEventListener("pointermove",move);
+document.removeEventListener("pointerup",up);
+}
+
+document.addEventListener("pointermove",move);
+document.addEventListener("pointerup",up);
+};
+
+function startDrag(e){
+
+let ghost=document.createElement("div");
+ghost.className="action-item";
+ghost.innerText="Moving...";
+ghost.style.position="fixed";
+ghost.style.pointerEvents="none";
+document.body.appendChild(ghost);
+
+document.onpointermove=(ev)=>{
+ghost.style.left=ev.pageX+"px";
+ghost.style.top=ev.pageY+"px";
+};
+
+document.onpointerup=async (ev)=>{
+
+document.onpointermove=null;
+document.onpointerup=null;
+
+let q=document.elementFromPoint(ev.clientX,ev.clientY)?.closest(".quadrant");
+
+if(q){
+for(let a of actions){
+if(selected.has(a.id)){
+a.quad=q.id;
+
+if(navigator.onLine){
+let {error}=await supabaseClient.from("tasks")
+.update({quad:a.quad}).eq("id",a.id);
+
+if(error) queue.push({type:"update",data:a});
+}else{
+queue.push({type:"update",data:a});
+}
+}
+}
+}
+
+ghost.remove();
+selected.clear();
+render(); save(); updateStatus();
+};
+}
+}
+
+/* ✅ RENDER + COUNT */
+function render(){
+
+let counts={q1:0,q2:0,q3:0,q4:0,q5:0,q6:0};
+
+quads.forEach(q=>{
+document.getElementById("list-"+q).innerHTML="";
+});
+
+actions.forEach(a=>{
+counts[a.quad]++;
+
+let el=document.createElement("div");
+
+el.className="action-item";
+
+if(selected.has(a.id)) el.classList.add("selected-item");
+
+el.innerHTML=`${a.text}<span class="delete-btn">✖</span>`;
+
+el.onclick=(e)=>{
+if(e.target.classList.contains("delete-btn")){
+del(a.id); return;
+}
+click(a);
+};
+
+drag(el,a);
+
+document.getElementById("list-"+a.quad).appendChild(el);
+});
+
+/* ✅ UPDATE COUNTS */
+quads.forEach(q=>{
+let el=document.getElementById("count-"+q);
+if(el) el.innerText="("+counts[q]+")";
+});
+}
+
+/* ✅ VOICE */
+function startVoice(){
+let Speech=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!Speech){alert("Not supported");return;}
+
+let rec=new Speech();
+rec.lang="en-IN";
+
+rec.onresult=(e)=>{
+let t=e.results[0][0].transcript;
+addTask(t);
+};
+
+rec.start();
+}
+
+/* ✅ SHORTCUTS */
+document.addEventListener("keydown",(e)=>{
+
+if(e.ctrlKey && e.key==="a"){
+e.preventDefault();
+addTask();
+}
+
+if(e.ctrlKey && e.key==="v"){
+e.preventDefault();
+startVoice();
+}
+
+if(e.key==="Delete"){
+deleteSelected();
+}
+
+});
+
+/* HUB */
+function toggleHub(){
+document.getElementById("hub-container").classList.toggle("open");
+}
+
+document.addEventListener("click",(e)=>{
+if(!document.getElementById("hub-container").contains(e.target)){
+document.getElementById("hub-container").classList.remove("open");
+}
+});
+
+function deselectAll(){
+selected.clear();
+render();
+}
+
+/* INIT */
+render();
+sync();
+updateStatus();
+window.ononline=sync;
+
 </script>
+
 </body>
 </html>
+
