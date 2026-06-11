@@ -96,7 +96,7 @@ const supabaseClient = supabase.createClient(
 );
 
 const quads=["q1","q2","q3","q4","q5","q6"];
-const names=["DO","PLAN","OFFER","RC","VISIT","PERSONAL"];
+const names=["DO","PLAN","OFFER","RC","VISIT","PROJECT"];
 
 let actions = JSON.parse(localStorage.getItem("synapse6"))||[];
 let queue = JSON.parse(localStorage.getItem("syncQueue"))||[];
@@ -195,7 +195,7 @@ if(txt.includes("plan")) quad="q2";
 else if(txt.includes("offer")) quad="q3";
 else if(txt.includes("rc") || txt.includes("Quote")) quad="q4";
 else if(txt.includes("visit")) quad="q5";
-else if(txt.includes("my")) quad="q6";
+else if(txt.includes("project")) quad="q6";
 
 let task={id:Date.now(),text:t,quad:quad};
 
